@@ -4665,7 +4665,35 @@ function applySyncKey(key) {
   closeSyncSetup();
   showPa('Sync connected.');
   syncSetStatus('pending', 'connecting…');
-  cloudPull();
+  firstConnectSync();
+}
+
+// First connect: decide which side wins instead of blindly adopting the cloud.
+// Cloud empty -> seed it with this device. Local trivial -> adopt cloud.
+// Both have real data -> ask.
+async function firstConnectSync() {
+  try {
+    const out = await syncRpc('dailyos_pull', { sync_key: syncKey() });
+    if (!out) { setSyncDirty(true); cloudPush(); return; }
+    const localHasData =
+      Object.keys(S.done || {}).length > 0 ||
+      (S.weekly || []).length > 0 ||
+      Object.keys(S.custom || {}).length > 0;
+    if (localHasData && !confirm(
+      'This sync key already has data in the cloud.\n\n' +
+      'OK = use the CLOUD data (replaces what is on this device)\n' +
+      'Cancel = keep THIS device’s data (replaces the cloud)'
+    )) {
+      setSyncDirty(true);
+      cloudPush();
+      return;
+    }
+    adoptState(out.data);
+    localStorage.setItem(SYNC_TS_LS, out.updated_at);
+    syncSetStatus('ok', 'on · up to date');
+  } catch (e) {
+    syncSetStatus('err', 'offline · will retry');
+  }
 }
 
 function disconnectSync() {
