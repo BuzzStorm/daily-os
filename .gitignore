@@ -1,0 +1,6 @@
+# Secrets — never commit
+.supabase-db-password.txt
+SYNC_KEY.txt
+
+# Supabase CLI local state
+supabase/.temp/
