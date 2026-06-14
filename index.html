@@ -2064,8 +2064,16 @@ let dataChanged = false;
 
 if (ensureEvent('Anniversary', { text:'Anniversary', date:'2026-05-14', repeat:'yearly' })) dataChanged = true;
 if (ensureEvent('Swimming at Lamorna (Daisy)', {
-  text:'Swimming at Lamorna (Daisy)', date:'2026-03-15', repeat:'weekly', time:'08:00', quiet:true
+  text:'Swimming at Lamorna (Daisy)', date:'2026-03-15', repeat:'weekly', time:'09:00', quiet:true
 })) dataChanged = true;
+// Swimming moved 08:00 -> 09:00. Update the copy already in saved data (the
+// seeder above only adds when missing, so it won't touch an existing event).
+if (!S._swim9am) {
+  const swim = S.events.find(e => e.text === 'Swimming at Lamorna (Daisy)');
+  if (swim && swim.time === '08:00') { swim.time = '09:00'; dataChanged = true; }
+  S._swim9am = true;
+  dataChanged = true;
+}
 
 // Man Utd fixtures
 [
