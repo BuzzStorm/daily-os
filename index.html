@@ -868,6 +868,19 @@
     opacity: 0.6;
     flex-shrink: 0;
   }
+  /* Holiday / notable date variant — calm teal to set it apart from work gold */
+  .inline-event.is-holiday {
+    background: rgba(110,168,184,0.08);
+    border-color: rgba(110,168,184,0.35);
+  }
+  .inline-event.is-holiday:hover { background: rgba(110,168,184,0.14); }
+  .inline-event.is-holiday .ie-bar { background: #6ea8b8; }
+  .inline-event.is-holiday .ie-badge { color: #6ea8b8; }
+  .ie-time.ie-allday {
+    font-size: 8px;
+    letter-spacing: 1px;
+    opacity: 0.55;
+  }
 
   /* Drag and drop */
   .task[draggable="true"], .ot-row[draggable="true"] { cursor: grab; }
@@ -2050,7 +2063,6 @@ let dataChanged = false;
 ].forEach(b => { if (ensureEvent(b.text, b)) dataChanged = true; });
 
 if (ensureEvent('Anniversary', { text:'Anniversary', date:'2026-05-14', repeat:'yearly' })) dataChanged = true;
-if (ensureEvent('Mothers Day', { text:'Mothers Day', date:'2026-03-15', repeat:'none' })) dataChanged = true;
 if (ensureEvent('Swimming at Lamorna (Daisy)', {
   text:'Swimming at Lamorna (Daisy)', date:'2026-03-15', repeat:'weekly', time:'08:00', quiet:true
 })) dataChanged = true;
@@ -2069,6 +2081,76 @@ if (ensureEvent('Swimming at Lamorna (Daisy)', {
 ].forEach(m => {
   if (ensureEvent(m.text, { text:m.text, date:m.date, repeat:'none', mufc:true, time:m.time, quiet:true })) dataChanged = true;
 });
+
+// ── UK HOLIDAYS & NOTABLE DATES (England & Wales) ──
+// Bank holidays, Mothering Sunday and Father's Day move year to year (and bank
+// holidays gain substitute days), so they're listed as explicit per-year dates —
+// England & Wales bank holidays sourced from gov.uk for 2026–2028. Fixed cultural
+// dates use repeat:'yearly' so they self-maintain beyond the listed years.
+// All tagged holiday:true (distinct badge) + quiet:true (no banners/reminders).
+const UK_DATED_HOLIDAYS = [
+  // Bank holidays 2026
+  { date:'2026-01-01', text:"New Year's Day" },
+  { date:'2026-04-03', text:'Good Friday' },
+  { date:'2026-04-06', text:'Easter Monday' },
+  { date:'2026-05-04', text:'Early May Bank Holiday' },
+  { date:'2026-05-25', text:'Spring Bank Holiday' },
+  { date:'2026-08-31', text:'Summer Bank Holiday' },
+  { date:'2026-12-25', text:'Christmas Day' },
+  { date:'2026-12-28', text:'Boxing Day (substitute)' },
+  // Bank holidays 2027
+  { date:'2027-01-01', text:"New Year's Day" },
+  { date:'2027-03-26', text:'Good Friday' },
+  { date:'2027-03-29', text:'Easter Monday' },
+  { date:'2027-05-03', text:'Early May Bank Holiday' },
+  { date:'2027-05-31', text:'Spring Bank Holiday' },
+  { date:'2027-08-30', text:'Summer Bank Holiday' },
+  { date:'2027-12-27', text:'Christmas Day (substitute)' },
+  { date:'2027-12-28', text:'Boxing Day (substitute)' },
+  // Bank holidays 2028
+  { date:'2028-01-03', text:"New Year's Day (substitute)" },
+  { date:'2028-04-14', text:'Good Friday' },
+  { date:'2028-04-17', text:'Easter Monday' },
+  { date:'2028-05-01', text:'Early May Bank Holiday' },
+  { date:'2028-05-29', text:'Spring Bank Holiday' },
+  { date:'2028-08-28', text:'Summer Bank Holiday' },
+  { date:'2028-12-25', text:'Christmas Day' },
+  { date:'2028-12-26', text:'Boxing Day' },
+  // Mothering Sunday (3 weeks before Easter)
+  { date:'2026-03-15', text:"Mother's Day" },
+  { date:'2027-03-07', text:"Mother's Day" },
+  { date:'2028-03-26', text:"Mother's Day" },
+  // Father's Day (3rd Sunday of June)
+  { date:'2026-06-21', text:"Father's Day" },
+  { date:'2027-06-20', text:"Father's Day" },
+  { date:'2028-06-18', text:"Father's Day" },
+  // Clocks change (last Sunday Mar forward / last Sunday Oct back)
+  { date:'2026-03-29', text:'Clocks go forward (BST)' },
+  { date:'2026-10-25', text:'Clocks go back (GMT)' },
+  { date:'2027-03-28', text:'Clocks go forward (BST)' },
+  { date:'2027-10-31', text:'Clocks go back (GMT)' },
+  { date:'2028-03-26', text:'Clocks go forward (BST)' },
+  { date:'2028-10-29', text:'Clocks go back (GMT)' },
+];
+const UK_FIXED_NOTABLE = [
+  { date:'2026-02-14', text:"Valentine's Day" },
+  { date:'2026-10-31', text:'Halloween' },
+  { date:'2026-11-05', text:'Bonfire Night' },
+  { date:'2026-12-24', text:'Christmas Eve' },
+  { date:'2026-12-31', text:"New Year's Eve" },
+];
+if (!S._holidaysV1) {
+  // Supersede the old untagged one-off 'Mothers Day' seed, if present.
+  S.events = S.events.filter(e => !(e.text === 'Mothers Day' && !e.holiday));
+  for (const h of UK_DATED_HOLIDAYS) {
+    S.events.push({ id: uid(), text: h.text, date: h.date, repeat: 'none', holiday: true, quiet: true });
+  }
+  for (const h of UK_FIXED_NOTABLE) {
+    S.events.push({ id: uid(), text: h.text, date: h.date, repeat: 'yearly', holiday: true, quiet: true });
+  }
+  S._holidaysV1 = true;
+  dataChanged = true;
+}
 
 if (dataChanged) save();
 
@@ -3368,13 +3450,15 @@ function renderMain() {
         if (item._type === 'event') {
           const locStr = item.location ? ` &middot; ${item.location}` : '';
           const notesStr = item.notes ? ` &middot; ${item.notes}` : '';
-          htm += `<div class="block" style="border-left:3px solid var(--accent);cursor:pointer;" onclick="editEvent('${item.id}')">
+          const accent = item.holiday ? '#6ea8b8' : 'var(--accent)';
+          const subLabel = item.holiday ? 'Holiday' : 'Event';
+          htm += `<div class="block" style="border-left:3px solid ${accent};cursor:pointer;" onclick="editEvent('${item.id}')">
             <div class="bk-hd">
-              <div class="bk-cat" style="background:var(--accent);"></div>
+              <div class="bk-cat" style="background:${accent};"></div>
               <div class="bk-time">${item.time || ''}</div>
               <div class="bk-info">
                 <div class="bk-title">${item.text}</div>
-                <div class="bk-sub">Event${locStr}${notesStr}</div>
+                <div class="bk-sub">${subLabel}${locStr}${notesStr}</div>
               </div>
             </div>
           </div>`;
@@ -3561,14 +3645,17 @@ function renderInlineEvent(ev) {
   const isPast = viewDay === today() && ev.time && timeToMin(ev.time) < getNow();
   const locStr = ev.location ? ` &middot; ${ev.location}` : '';
   const notesStr = ev.notes ? ` &middot; ${ev.notes}` : '';
-  return `<div class="inline-event ${isPast?'is-past':''}" onclick="editEvent('${ev.id}')">
+  const timeCell = ev.time
+    ? `<div class="ie-time">${ev.time}</div>`
+    : `<div class="ie-time ie-allday">ALL&nbsp;DAY</div>`;
+  return `<div class="inline-event ${isPast?'is-past':''} ${ev.holiday?'is-holiday':''}" onclick="editEvent('${ev.id}')">
     <div class="ie-bar"></div>
-    <div class="ie-time">${ev.time}</div>
+    ${timeCell}
     <div class="ie-info">
       <div class="ie-title">${ev.text}</div>
       ${(ev.location || ev.notes) ? `<div class="ie-sub">${locStr}${notesStr}</div>` : ''}
     </div>
-    <div class="ie-badge">EVENT</div>
+    <div class="ie-badge">${ev.holiday?'HOLIDAY':'EVENT'}</div>
   </div>`;
 }
 
@@ -4047,9 +4134,10 @@ function renderEvents() {
     const timeStr = ev.time ? ' ' + ev.time : '';
     const locTag = ev.location ? `<span style="font-size:10px;color:var(--muted);"> ${ev.location}</span>` : '';
     const bellTag = ev.reminder != null ? `<span style="font-size:9px;color:var(--accent);margin-left:3px;" title="Reminder set">&#128276;</span>` : '';
+    const holTag = ev.holiday ? `<span style="font-size:8px;color:#6ea8b8;border:1px solid rgba(110,168,184,0.4);border-radius:3px;padding:0 3px;margin-left:5px;letter-spacing:0.5px;vertical-align:middle;">HOL</span>` : '';
     return `<div class="ev-item" style="cursor:pointer;" onclick="editEvent('${ev.id}')">
       <div class="ev-date">${dateStr}${timeStr}</div>
-      <div class="ev-txt">${ev.text}${locTag}${bellTag}</div>
+      <div class="ev-txt">${ev.text}${holTag}${locTag}${bellTag}</div>
       <div class="ev-days ${ev.daysAway===0?'today':soon?'soon':''}">${ev.daysAway===0?'Today':ev.daysAway+'d'}</div>
       <span class="ev-rm" onclick="event.stopPropagation();rmEvent('${ev.id}')">&times;</span>
     </div>`;
