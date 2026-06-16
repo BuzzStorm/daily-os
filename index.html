@@ -229,6 +229,100 @@
     transition: width 1s linear;
   }
 
+  /* Pinned countdown hero */
+  .cd-hero {
+    margin: 16px 0 8px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, rgba(212,164,74,0.16), rgba(212,164,74,0.04));
+    border: 1px solid var(--accent-border);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--r-card);
+    position: relative;
+    overflow: hidden;
+  }
+  .cd-hero-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .cd-hero-loc {
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .cd-hero-body {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .cd-hero-num {
+    font-size: 46px;
+    font-weight: 800;
+    line-height: 0.9;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .cd-hero-unit {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .cd-hero-foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+  }
+  .cd-hero-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(212,164,74,0.15);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .cd-hero-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 1s linear;
+  }
+  .cd-hero-date {
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .cd-hero-unpin {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity .12s, color .12s;
+  }
+  .cd-hero-unpin:hover { opacity: 1; color: var(--accent); }
+  .ev-pin {
+    cursor: pointer;
+    opacity: 0.35;
+    transition: opacity .12s, transform .12s;
+    font-size: 11px;
+    line-height: 1;
+    margin-left: 2px;
+  }
+  .ev-pin:hover { opacity: 0.9; transform: scale(1.15); }
+  .ev-pin.active { opacity: 1; }
+
   /* Today's Work — visually unified across AM/PM halves */
   .block.work-zone {
     border-color: rgba(106,184,145,0.32);
@@ -1888,6 +1982,8 @@ let S = load();
 if (!S.daysOff) S.daysOff = [];
 if (!S.recurring) S.recurring = [];
 if (!S.taskMoves) S.taskMoves = {};
+if (S.pinnedCountdown === undefined) S.pinnedCountdown = null;
+// pinnedCountdown: { eventId, pinnedAt (YYYY-MM-DD) } | null — the event shown in the countdown hero
 // recurring: [{ id, text, cat, dur, dayOfWeek (0=Sun,6=Sat), block (for weekdays), notes }]
 // Gym days — configurable, stored in state
 if (!S.gymDays) S.gymDays = [1, 2, 4]; // default Mon, Tue, Thu
@@ -1906,6 +2002,19 @@ if (!S._daisyEvents) {
   }
   S._daisyEvents = true;
   // Persist migration + Daisy events immediately so we don't recreate on next load.
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch {}
+}
+
+// Benson's Stag — seed once and pin as the countdown so the runway is visible immediately.
+if (!S._stagSeeded) {
+  S.events = S.events || [];
+  let stag = S.events.find(e => e.text === "Benson's Stag");
+  if (!stag) {
+    stag = { id: uid(), text: "Benson's Stag", date: '2026-09-04', repeat: 'none', time: null, reminder: null, location: 'Marbella' };
+    S.events.push(stag);
+  }
+  if (!S.pinnedCountdown) S.pinnedCountdown = { eventId: stag.id, pinnedAt: today() };
+  S._stagSeeded = true;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch {}
 }
 
@@ -3106,6 +3215,7 @@ function editEvent(id) {
             <option value="1440" ${ev.reminder===1440?'selected':''}>1 day before</option>
           </select>
         </div>
+        <button class="ae-btn" style="width:100%;margin-top:4px;" onclick="document.getElementById('ev-edit-modal').remove();togglePinCountdown('${id}')">${S.pinnedCountdown && S.pinnedCountdown.eventId === id ? '&#128204; Unpin countdown' : '&#128204; Pin as countdown'}</button>
         <div style="display:flex;gap:6px;margin-top:4px;">
           <button class="qa-btn" style="flex:1;" onclick="saveEventEdit('${id}')">Save</button>
           <button class="ae-btn" style="flex:1;" onclick="document.getElementById('ev-edit-modal').remove()">Cancel</button>
@@ -3181,6 +3291,88 @@ function getTodayEvents() {
 
 function getSoonEvents() {
   return getUpcomingEvents().filter(e => e.daysAway > 0 && e.daysAway <= 7);
+}
+
+// ── PINNED COUNTDOWN ──
+// Resolve the pinned event to its next occurrence. Returns { ev, evDate, diffDays }
+// or null (no pin / event deleted / one-off already passed — stale pins are cleared).
+// Unlike getUpcomingEvents() this is NOT capped at 60 days.
+function pinnedTarget() {
+  const pc = S.pinnedCountdown;
+  if (!pc) return null;
+  const ev = S.events.find(e => e.id === pc.eventId);
+  if (!ev) { S.pinnedCountdown = null; save(); return null; }
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  let evDate = new Date(ev.date + 'T00:00:00');
+
+  if (ev.repeat === 'yearly') {
+    evDate.setFullYear(now.getFullYear());
+    if (evDate < now) evDate.setFullYear(now.getFullYear() + 1);
+  } else if (ev.repeat === 'monthly') {
+    evDate.setFullYear(now.getFullYear());
+    evDate.setMonth(now.getMonth());
+    if (evDate < now) evDate.setMonth(now.getMonth() + 1);
+  } else if (ev.repeat === 'weekly') {
+    while (evDate < now) evDate.setDate(evDate.getDate() + 7);
+  } else if (evDate < now) {
+    // One-off that has passed — clear the stale pin.
+    S.pinnedCountdown = null; save(); return null;
+  }
+
+  const diffDays = Math.round((evDate - now) / 86400000);
+  return { ev, evDate, diffDays };
+}
+
+function togglePinCountdown(id) {
+  if (S.pinnedCountdown && S.pinnedCountdown.eventId === id) {
+    S.pinnedCountdown = null;
+  } else {
+    S.pinnedCountdown = { eventId: id, pinnedAt: today() };
+  }
+  save(); render();
+}
+
+function unpinCountdown() {
+  S.pinnedCountdown = null;
+  save(); render();
+}
+
+function renderCountdownHero() {
+  const t = pinnedTarget();
+  if (!t) return '';
+  const { ev, evDate, diffDays } = t;
+
+  // Runway bar: empty when pinned -> full on the day. Guard zero/negative span.
+  const pinnedAt = new Date((S.pinnedCountdown.pinnedAt || today()) + 'T00:00:00');
+  const spanDays = Math.round((evDate - pinnedAt) / 86400000);
+  let pct = 0;
+  if (spanDays > 0) {
+    const elapsed = spanDays - diffDays;
+    pct = Math.max(0, Math.min(100, Math.round((elapsed / spanDays) * 100)));
+  } else if (diffDays <= 0) {
+    pct = 100;
+  }
+
+  const num = diffDays === 0 ? 'Today' : diffDays;
+  const unit = diffDays === 0 ? '' : (diffDays === 1 ? 'Day to go' : 'Days to go');
+  const loc = ev.location ? `<span class="cd-hero-loc">&middot; ${ev.location}</span>` : '';
+  const dateStr = evDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  return `
+    <div class="cd-hero">
+      <span class="cd-hero-unpin" title="Unpin countdown" onclick="unpinCountdown()">&times;</span>
+      <div class="cd-hero-label">&#9203; ${ev.text}${loc}</div>
+      <div class="cd-hero-body">
+        <div class="cd-hero-num">${num}</div>
+        ${unit ? `<div class="cd-hero-unit">${unit}</div>` : ''}
+      </div>
+      <div class="cd-hero-foot">
+        <div class="cd-hero-bar"><div class="cd-hero-bar-fill" style="width:${pct}%"></div></div>
+        <span class="cd-hero-date">${dateStr}</span>
+      </div>
+    </div>`;
 }
 
 // ── STREAK ──
@@ -3356,6 +3548,9 @@ function renderMain() {
         <button class="day-btn" onclick="changeWeek(1)" title="Next week" style="padding:5px 8px;">&#8594;</button>
       </div>
     </div>`;
+
+  // ── PINNED COUNTDOWN HERO ──
+  htm += renderCountdownHero();
 
   // ── FOCUS CARD (today only, weekdays) ──
   if (viewDay === today() && !isWeekend(viewDay)) {
@@ -4178,10 +4373,13 @@ function renderEvents() {
     const locTag = ev.location ? `<span style="font-size:10px;color:var(--muted);"> ${ev.location}</span>` : '';
     const bellTag = ev.reminder != null ? `<span style="font-size:9px;color:var(--accent);margin-left:3px;" title="Reminder set">&#128276;</span>` : '';
     const holTag = ev.holiday ? `<span style="font-size:8px;color:#6ea8b8;border:1px solid rgba(110,168,184,0.4);border-radius:3px;padding:0 3px;margin-left:5px;letter-spacing:0.5px;vertical-align:middle;">HOL</span>` : '';
+    const isPinned = S.pinnedCountdown && S.pinnedCountdown.eventId === ev.id;
+    const pinTag = `<span class="ev-pin ${isPinned?'active':''}" title="${isPinned?'Unpin countdown':'Pin as countdown'}" onclick="event.stopPropagation();togglePinCountdown('${ev.id}')">&#128204;</span>`;
     return `<div class="ev-item" style="cursor:pointer;" onclick="editEvent('${ev.id}')">
       <div class="ev-date">${dateStr}${timeStr}</div>
       <div class="ev-txt">${ev.text}${holTag}${locTag}${bellTag}</div>
       <div class="ev-days ${ev.daysAway===0?'today':soon?'soon':''}">${ev.daysAway===0?'Today':ev.daysAway+'d'}</div>
+      ${pinTag}
       <span class="ev-rm" onclick="event.stopPropagation();rmEvent('${ev.id}')">&times;</span>
     </div>`;
   }).join('');
