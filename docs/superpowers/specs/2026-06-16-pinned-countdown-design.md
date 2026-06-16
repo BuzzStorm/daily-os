@@ -68,8 +68,24 @@ bolted on.
 - Runway span ≤ 0 → bar shown at 0% (no divide-by-zero).
 - Repeat events supported via next-occurrence calc.
 
+## Amendment (2026-06-16): multiple countdowns + sync hardening
+
+Extended from a single pin to **multiple** pinned countdowns, rendered as cards in
+a flex row (`.cd-hero-row`) that wraps to stacked on narrow widths, sorted
+nearest-event-first.
+
+- State: `S.pinnedCountdowns` — array of `{ eventId, pinnedAt }`. The old singular
+  `S.pinnedCountdown` is migrated into the array on load and deleted.
+- Seeds: `COUNTDOWN_SEEDS` table drives idempotent seeding via `ensureCountdowns()`.
+  Seeds Benson's Stag (Marbella, 4 Sep 2026) and Baby due (16 Nov 2026), each guarded
+  by its own `_stagSeeded` / `_babySeeded` flag.
+- **Sync clobber fix:** `ensureCountdowns()` runs on startup AND inside `adoptState()`
+  after every cloud pull, so a remote state saved before these existed (or by an older
+  client) re-acquires the seeds/pins instead of permanently wiping them. This fixes the
+  "banner flashes then disappears" symptom caused by the load-time pull adopting stale
+  remote state.
+
 ## Out of scope (YAGNI)
 
-- Multiple simultaneous pinned countdowns.
 - Hour/minute/second live ticking — day granularity is enough for the motivation goal.
 - Notifications tied to the countdown (events already have their own reminders).

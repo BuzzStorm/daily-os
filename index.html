@@ -230,8 +230,15 @@
   }
 
   /* Pinned countdown hero */
-  .cd-hero {
+  .cd-hero-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
     margin: 16px 0 8px;
+  }
+  .cd-hero {
+    flex: 1 1 240px;
+    min-width: 0;
     padding: 16px 20px;
     background: linear-gradient(135deg, rgba(212,164,74,0.16), rgba(212,164,74,0.04));
     border: 1px solid var(--accent-border);
@@ -1982,8 +1989,7 @@ let S = load();
 if (!S.daysOff) S.daysOff = [];
 if (!S.recurring) S.recurring = [];
 if (!S.taskMoves) S.taskMoves = {};
-if (S.pinnedCountdown === undefined) S.pinnedCountdown = null;
-// pinnedCountdown: { eventId, pinnedAt (YYYY-MM-DD) } | null — the event shown in the countdown hero
+// pinnedCountdowns: [{ eventId, pinnedAt (YYYY-MM-DD) }] — events shown as countdown hero cards
 // recurring: [{ id, text, cat, dur, dayOfWeek (0=Sun,6=Sat), block (for weekdays), notes }]
 // Gym days — configurable, stored in state
 if (!S.gymDays) S.gymDays = [1, 2, 4]; // default Mon, Tue, Thu
@@ -2005,16 +2011,8 @@ if (!S._daisyEvents) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch {}
 }
 
-// Benson's Stag — seed once and pin as the countdown so the runway is visible immediately.
-if (!S._stagSeeded) {
-  S.events = S.events || [];
-  let stag = S.events.find(e => e.text === "Benson's Stag");
-  if (!stag) {
-    stag = { id: uid(), text: "Benson's Stag", date: '2026-09-04', repeat: 'none', time: null, reminder: null, location: 'Marbella' };
-    S.events.push(stag);
-  }
-  if (!S.pinnedCountdown) S.pinnedCountdown = { eventId: stag.id, pinnedAt: today() };
-  S._stagSeeded = true;
+// Countdown hero seeds (stag, baby due). Idempotent + re-applied after every sync pull.
+if (ensureCountdowns()) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch {}
 }
 
@@ -3215,7 +3213,7 @@ function editEvent(id) {
             <option value="1440" ${ev.reminder===1440?'selected':''}>1 day before</option>
           </select>
         </div>
-        <button class="ae-btn" style="width:100%;margin-top:4px;" onclick="document.getElementById('ev-edit-modal').remove();togglePinCountdown('${id}')">${S.pinnedCountdown && S.pinnedCountdown.eventId === id ? '&#128204; Unpin countdown' : '&#128204; Pin as countdown'}</button>
+        <button class="ae-btn" style="width:100%;margin-top:4px;" onclick="document.getElementById('ev-edit-modal').remove();togglePinCountdown('${id}')">${isPinnedCountdown(id) ? '&#128204; Unpin countdown' : '&#128204; Pin as countdown'}</button>
         <div style="display:flex;gap:6px;margin-top:4px;">
           <button class="qa-btn" style="flex:1;" onclick="saveEventEdit('${id}')">Save</button>
           <button class="ae-btn" style="flex:1;" onclick="document.getElementById('ev-edit-modal').remove()">Cancel</button>
@@ -3297,11 +3295,53 @@ function getSoonEvents() {
 // Resolve the pinned event to its next occurrence. Returns { ev, evDate, diffDays }
 // or null (no pin / event deleted / one-off already passed — stale pins are cleared).
 // Unlike getUpcomingEvents() this is NOT capped at 60 days.
-function pinnedTarget() {
-  const pc = S.pinnedCountdown;
-  if (!pc) return null;
-  const ev = S.events.find(e => e.id === pc.eventId);
-  if (!ev) { S.pinnedCountdown = null; save(); return null; }
+// Seed the default countdown events (stag, baby) + pins, once each. Returns true if
+// anything changed. Idempotent and safe to call on startup AND after every sync pull,
+// so a remote state saved before these existed can't permanently clobber them.
+const COUNTDOWN_SEEDS = [
+  { flag: '_stagSeeded', text: "Benson's Stag", date: '2026-09-04', location: 'Marbella' },
+  { flag: '_babySeeded', text: 'Baby due',      date: '2026-11-16' },
+];
+function ensureCountdowns() {
+  let changed = false;
+  // Migrate the old single-pin model to the array.
+  if (S.pinnedCountdown !== undefined) {
+    if (!Array.isArray(S.pinnedCountdowns)) S.pinnedCountdowns = [];
+    if (S.pinnedCountdown && !S.pinnedCountdowns.some(p => p.eventId === S.pinnedCountdown.eventId)) {
+      S.pinnedCountdowns.push(S.pinnedCountdown);
+    }
+    delete S.pinnedCountdown;
+    changed = true;
+  }
+  if (!Array.isArray(S.pinnedCountdowns)) { S.pinnedCountdowns = []; changed = true; }
+
+  for (const seed of COUNTDOWN_SEEDS) {
+    if (S[seed.flag]) continue;
+    S.events = S.events || [];
+    let ev = S.events.find(e => e.text === seed.text);
+    if (!ev) {
+      ev = { id: uid(), text: seed.text, date: seed.date, repeat: 'none', time: null, reminder: null };
+      if (seed.location) ev.location = seed.location;
+      S.events.push(ev);
+    }
+    if (!S.pinnedCountdowns.some(p => p.eventId === ev.id)) {
+      S.pinnedCountdowns.push({ eventId: ev.id, pinnedAt: today() });
+    }
+    S[seed.flag] = true;
+    changed = true;
+  }
+  return changed;
+}
+
+function isPinnedCountdown(id) {
+  return Array.isArray(S.pinnedCountdowns) && S.pinnedCountdowns.some(p => p.eventId === id);
+}
+
+// Resolve one pin to its next occurrence. Returns { ev, evDate, diffDays, pinnedAt } or null.
+// Unlike getUpcomingEvents() this is NOT capped at 60 days.
+function countdownTarget(pin) {
+  const ev = S.events.find(e => e.id === pin.eventId);
+  if (!ev) return null;
 
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -3317,40 +3357,37 @@ function pinnedTarget() {
   } else if (ev.repeat === 'weekly') {
     while (evDate < now) evDate.setDate(evDate.getDate() + 7);
   } else if (evDate < now) {
-    // One-off that has passed — clear the stale pin.
-    S.pinnedCountdown = null; save(); return null;
+    return null; // one-off that has passed
   }
 
   const diffDays = Math.round((evDate - now) / 86400000);
-  return { ev, evDate, diffDays };
+  return { ev, evDate, diffDays, pinnedAt: pin.pinnedAt };
 }
 
 function togglePinCountdown(id) {
-  if (S.pinnedCountdown && S.pinnedCountdown.eventId === id) {
-    S.pinnedCountdown = null;
+  if (!Array.isArray(S.pinnedCountdowns)) S.pinnedCountdowns = [];
+  if (isPinnedCountdown(id)) {
+    S.pinnedCountdowns = S.pinnedCountdowns.filter(p => p.eventId !== id);
   } else {
-    S.pinnedCountdown = { eventId: id, pinnedAt: today() };
+    S.pinnedCountdowns.push({ eventId: id, pinnedAt: today() });
   }
   save(); render();
 }
 
-function unpinCountdown() {
-  S.pinnedCountdown = null;
+function unpinCountdown(id) {
+  S.pinnedCountdowns = (S.pinnedCountdowns || []).filter(p => p.eventId !== id);
   save(); render();
 }
 
-function renderCountdownHero() {
-  const t = pinnedTarget();
-  if (!t) return '';
-  const { ev, evDate, diffDays } = t;
+function renderCountdownCard(target) {
+  const { ev, evDate, diffDays, pinnedAt } = target;
 
   // Runway bar: empty when pinned -> full on the day. Guard zero/negative span.
-  const pinnedAt = new Date((S.pinnedCountdown.pinnedAt || today()) + 'T00:00:00');
-  const spanDays = Math.round((evDate - pinnedAt) / 86400000);
+  const pinDate = new Date((pinnedAt || today()) + 'T00:00:00');
+  const spanDays = Math.round((evDate - pinDate) / 86400000);
   let pct = 0;
   if (spanDays > 0) {
-    const elapsed = spanDays - diffDays;
-    pct = Math.max(0, Math.min(100, Math.round((elapsed / spanDays) * 100)));
+    pct = Math.max(0, Math.min(100, Math.round(((spanDays - diffDays) / spanDays) * 100)));
   } else if (diffDays <= 0) {
     pct = 100;
   }
@@ -3362,7 +3399,7 @@ function renderCountdownHero() {
 
   return `
     <div class="cd-hero">
-      <span class="cd-hero-unpin" title="Unpin countdown" onclick="unpinCountdown()">&times;</span>
+      <span class="cd-hero-unpin" title="Unpin countdown" onclick="unpinCountdown('${ev.id}')">&times;</span>
       <div class="cd-hero-label">&#9203; ${ev.text}${loc}</div>
       <div class="cd-hero-body">
         <div class="cd-hero-num">${num}</div>
@@ -3373,6 +3410,25 @@ function renderCountdownHero() {
         <span class="cd-hero-date">${dateStr}</span>
       </div>
     </div>`;
+}
+
+function renderCountdownHero() {
+  const pins = S.pinnedCountdowns || [];
+  const targets = [];
+  const stale = [];
+  for (const pin of pins) {
+    const t = countdownTarget(pin);
+    if (t) targets.push(t); else stale.push(pin.eventId);
+  }
+  // Drop pins whose event was deleted or whose one-off date has passed.
+  if (stale.length) {
+    S.pinnedCountdowns = pins.filter(p => !stale.includes(p.eventId));
+    save();
+  }
+  if (!targets.length) return '';
+  // Nearest event first.
+  targets.sort((a, b) => a.diffDays - b.diffDays);
+  return `<div class="cd-hero-row">${targets.map(renderCountdownCard).join('')}</div>`;
 }
 
 // ── STREAK ──
@@ -4373,7 +4429,7 @@ function renderEvents() {
     const locTag = ev.location ? `<span style="font-size:10px;color:var(--muted);"> ${ev.location}</span>` : '';
     const bellTag = ev.reminder != null ? `<span style="font-size:9px;color:var(--accent);margin-left:3px;" title="Reminder set">&#128276;</span>` : '';
     const holTag = ev.holiday ? `<span style="font-size:8px;color:#6ea8b8;border:1px solid rgba(110,168,184,0.4);border-radius:3px;padding:0 3px;margin-left:5px;letter-spacing:0.5px;vertical-align:middle;">HOL</span>` : '';
-    const isPinned = S.pinnedCountdown && S.pinnedCountdown.eventId === ev.id;
+    const isPinned = isPinnedCountdown(ev.id);
     const pinTag = `<span class="ev-pin ${isPinned?'active':''}" title="${isPinned?'Unpin countdown':'Pin as countdown'}" onclick="event.stopPropagation();togglePinCountdown('${ev.id}')">&#128204;</span>`;
     return `<div class="ev-item" style="cursor:pointer;" onclick="editEvent('${ev.id}')">
       <div class="ev-date">${dateStr}${timeStr}</div>
@@ -4924,6 +4980,9 @@ function adoptState(data) {
     if (!S.taskMoves) S.taskMoves = {};
     if (!S.gymDays) S.gymDays = [1, 2, 4];
     syncGymDays();
+    // Re-apply countdown seeds/pins so a remote state saved before they existed
+    // (or from an older client) can't permanently clobber them.
+    ensureCountdowns();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
     render();
   } finally {
