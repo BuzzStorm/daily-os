@@ -81,9 +81,10 @@
   .app {
     display: flex;
     min-height: 100vh;
-    max-width: 100%;        /* fill the window — the old 1380px cap left a dead
-                               left margin on wide screens next to the work area */
-    margin: 0;
+    max-width: 1280px;      /* contained, centered reading width — full-width made
+                               the work column too wide/sparse on big monitors.
+                               Balanced margins (not the old lopsided gap). */
+    margin: 0 auto;
   }
   .main {
     flex: 1;
