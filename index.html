@@ -5192,7 +5192,7 @@ window.addEventListener('pagehide', syncFlushBeacon);
 window.addEventListener('online', () => { syncDirty() ? cloudPush() : cloudPull(); });
 setInterval(() => {
   if (document.visibilityState === 'visible' && syncKey()) cloudPull();
-}, 20000);
+}, 5000);
 
 // Initial sync state
 if (maybeAutoConnectFromHash()) {
