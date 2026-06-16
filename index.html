@@ -3292,17 +3292,16 @@ function getSoonEvents() {
 }
 
 // ── PINNED COUNTDOWN ──
-// Resolve the pinned event to its next occurrence. Returns { ev, evDate, diffDays }
-// or null (no pin / event deleted / one-off already passed — stale pins are cleared).
-// Unlike getUpcomingEvents() this is NOT capped at 60 days.
 // Seed the default countdown events (stag, baby) + pins, once each. Returns true if
 // anything changed. Idempotent and safe to call on startup AND after every sync pull,
 // so a remote state saved before these existed can't permanently clobber them.
-const COUNTDOWN_SEEDS = [
-  { flag: '_stagSeeded', text: "Benson's Stag", date: '2026-09-04', location: 'Marbella' },
-  { flag: '_babySeeded', text: 'Baby due',      date: '2026-11-16' },
-];
+// NB: seeds are declared inside the function — this runs during startup (before the
+// rest of the script body executes), so a module-level `const` would be in its TDZ.
 function ensureCountdowns() {
+  const COUNTDOWN_SEEDS = [
+    { flag: '_stagSeeded', text: "Benson's Stag", date: '2026-09-04', location: 'Marbella' },
+    { flag: '_babySeeded', text: 'Baby due',      date: '2026-11-16' },
+  ];
   let changed = false;
   // Migrate the old single-pin model to the array.
   if (S.pinnedCountdown !== undefined) {
