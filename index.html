@@ -1179,6 +1179,30 @@
   .sb-stat-pill .sv { color: var(--text2); font-weight: 600; }
   .sb-stat-pill .sv.accent { color: var(--accent); }
 
+  /* Always-visible sync status pill (click to open setup) */
+  .sb-sync-pill {
+    display: flex; align-items: center; gap: 5px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition: border-color .12s, color .12s;
+    white-space: nowrap;
+  }
+  .sb-sync-pill:hover { border-color: var(--accent-border); color: var(--text2); }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--border2); flex: none;
+  }
+  .sync-dot.sync-ok { background: #6fbf73; }
+  .sync-dot.sync-pending { background: var(--accent); }
+  .sync-dot.sync-err { background: #e06c75; }
+  .sync-dot.sync-off { background: var(--border2); }
+
   .sb-actions {
     display: flex;
     align-items: center;
@@ -1707,6 +1731,9 @@
         <div class="sb-stat-pill"><span class="sv" id="sTasks">0</span> done</div>
         <div class="sb-stat-pill" id="sNnPill"><span class="sv" id="sNn">0/5</span> non-negs</div>
         <div class="sb-stat-pill" id="sHoursPill"><span class="sv" id="sHours">0h</span> blocked</div>
+        <div class="sb-sync-pill" id="syncPill" onclick="openSyncSetup()" title="Cloud sync — click to set up or add a device">
+          <span class="sync-dot" id="syncPillDot"></span><span id="syncPillText">sync off</span>
+        </div>
       </div>
       <div class="sb-actions">
         <button class="sb-icon-btn" onclick="toggleSbSearch()" id="sbSearchBtn" title="Search">
@@ -4921,6 +4948,16 @@ function syncSetStatus(state, label) {
   if (dot) dot.className = 'sync-' + state;
   const item = document.getElementById('syncMenuItem');
   if (item) item.textContent = 'Sync: ' + label;
+  // Always-visible pill: short, glanceable label.
+  const pillDot = document.getElementById('syncPillDot');
+  const pillText = document.getElementById('syncPillText');
+  if (pillDot) pillDot.className = 'sync-dot sync-' + state;
+  if (pillText) {
+    pillText.textContent =
+      state === 'ok' ? 'synced' :
+      state === 'pending' ? 'syncing…' :
+      state === 'err' ? 'offline' : 'sync off';
+  }
 }
 
 function scheduleCloudPush() {
@@ -5013,25 +5050,36 @@ function openSyncSetup() {
   wrap.id = 'syncSetupOverlay';
   wrap.style.cssText = 'position:fixed;inset:0;background:rgba(10,11,16,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
   wrap.innerHTML = `
-    <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;max-width:420px;width:100%;padding:22px;">
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;max-width:440px;width:100%;padding:22px;">
       <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Cloud Sync</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;">
-        ${existing
-          ? 'This device is synced. To sync another device, copy the key below and paste it there.'
-          : 'Paste your sync key from another device, or generate a new one to start syncing.'}
-      </div>
-      <input id="syncKeyInp" class="qa-inp" type="text" spellcheck="false" autocomplete="off"
-        value="${existing}" placeholder="Paste sync key…"
-        style="width:100%;font-family:'JetBrains Mono',monospace;font-size:11px;margin-bottom:12px;">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${existing ? `
-          <button class="qa-btn" onclick="navigator.clipboard.writeText(document.getElementById('syncKeyInp').value).then(()=>showPa('Sync key copied.'))">Copy Key</button>
-          <button class="qa-btn" onclick="applySyncKey(document.getElementById('syncKeyInp').value.trim())">Update</button>
-          <button class="qa-btn" style="color:#e06c75;" onclick="disconnectSync()">Disconnect</button>
-        ` : `
+      ${existing ? `
+        <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;">
+          This device is synced. To add another device, copy the sync link below and open it there — it connects automatically.
+        </div>
+        <button class="qa-btn" style="width:100%;margin-bottom:10px;" onclick="copySyncLink()">&#128279; Copy sync link</button>
+        <details style="margin-bottom:8px;">
+          <summary style="font-size:11px;color:var(--muted);cursor:pointer;">Advanced — copy raw key / disconnect</summary>
+          <input id="syncKeyInp" class="qa-inp" type="text" spellcheck="false" autocomplete="off"
+            value="${existing}" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:11px;margin:10px 0;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="qa-btn" onclick="navigator.clipboard.writeText(document.getElementById('syncKeyInp').value).then(()=>showPa('Sync key copied.'))">Copy key</button>
+            <button class="qa-btn" onclick="applySyncKey(document.getElementById('syncKeyInp').value.trim())">Update</button>
+            <button class="qa-btn" style="color:#e06c75;" onclick="disconnectSync()">Disconnect</button>
+          </div>
+        </details>
+      ` : `
+        <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;">
+          Paste a sync link (or key) from another device, or start fresh on this one.
+        </div>
+        <input id="syncKeyInp" class="qa-inp" type="text" spellcheck="false" autocomplete="off"
+          value="" placeholder="Paste sync link or key…"
+          style="width:100%;font-family:'JetBrains Mono',monospace;font-size:11px;margin-bottom:12px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="qa-btn" onclick="applySyncKey(document.getElementById('syncKeyInp').value.trim())">Connect</button>
-          <button class="qa-btn" onclick="applySyncKey(genSyncKey())">Generate New Key</button>
-        `}
+          <button class="qa-btn" onclick="generateAndShowSyncLink()">Start syncing this device</button>
+        </div>
+      `}
+      <div style="display:flex;margin-top:12px;">
         <button class="qa-btn" style="margin-left:auto;" onclick="closeSyncSetup()">Close</button>
       </div>
     </div>`;
@@ -5044,8 +5092,35 @@ function closeSyncSetup() {
   if (el) el.remove();
 }
 
-function applySyncKey(key) {
-  if (!key || key.length < 32) { showPa('Sync key must be at least 32 characters.'); return; }
+// Accept either a raw key or a full sync link (…#sync=KEY) pasted into the box.
+function extractSyncKey(input) {
+  if (!input) return '';
+  input = input.trim();
+  const m = input.match(/[#&?]sync=([0-9a-fA-F]{32,})/);
+  return m ? m[1] : input;
+}
+
+function syncLink(key) {
+  return location.origin + location.pathname + '#sync=' + key;
+}
+
+function copySyncLink() {
+  const key = syncKey();
+  if (!key) { showPa('No sync key on this device yet.'); return; }
+  navigator.clipboard.writeText(syncLink(key))
+    .then(() => showPa('Sync link copied — open it on your other device.'))
+    .catch(() => showPa('Could not copy. Use Advanced → Copy key.'));
+}
+
+function generateAndShowSyncLink() {
+  applySyncKey(genSyncKey());
+  openSyncSetup();        // reopen so the Copy-sync-link button is ready
+  copySyncLink();         // and put it on the clipboard straight away
+}
+
+function applySyncKey(input) {
+  const key = extractSyncKey(input);
+  if (!key || key.length < 32) { showPa('That doesn’t look like a sync link or key.'); return; }
   localStorage.setItem(SYNC_KEY_LS, key);
   localStorage.removeItem(SYNC_TS_LS);
   setSyncDirty(false);
@@ -5053,6 +5128,22 @@ function applySyncKey(key) {
   showPa('Sync connected.');
   syncSetStatus('pending', 'connecting…');
   firstConnectSync();
+}
+
+// Auto-connect when the app is opened via a sync link (…#sync=KEY). Runs once at
+// startup, before the normal sync init, then strips the key from the address bar.
+function maybeAutoConnectFromHash() {
+  const m = (location.hash || '').match(/sync=([0-9a-fA-F]{32,})/);
+  if (!m) return false;
+  const key = m[1];
+  try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+  if (key === syncKey()) return true; // already on this key
+  localStorage.setItem(SYNC_KEY_LS, key);
+  localStorage.removeItem(SYNC_TS_LS);
+  setSyncDirty(false);
+  syncSetStatus('pending', 'connecting…');
+  firstConnectSync();
+  return true;
 }
 
 // First connect: decide which side wins instead of blindly adopting the cloud.
@@ -5104,7 +5195,9 @@ setInterval(() => {
 }, 20000);
 
 // Initial sync state
-if (syncKey()) {
+if (maybeAutoConnectFromHash()) {
+  // firstConnectSync() already kicked off by the hash handler.
+} else if (syncKey()) {
   syncSetStatus('pending', 'connecting…');
   cloudPull();
 } else {
