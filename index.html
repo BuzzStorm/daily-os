@@ -35,6 +35,7 @@
     --text: #f5f5f7;
     --text2: #ecedf3;
     --muted: #ccd0e0;
+    --faint: #8a8fa0;
     --done: #7cc59b;
     --done-bg: rgba(124,197,155,0.14);
 
@@ -62,13 +63,14 @@
     --r-xs: 4px;
   }
 
-  body {
+  html, body {
     background: var(--bg);
     color: var(--text);
     font-family: 'Inter', -apple-system, sans-serif;
     min-height: 100vh;
     font-size: 15px;
     line-height: 1.55;
+    overflow-x: hidden;     /* no horizontal page scrollbar */
   }
 
   /* ── LAYOUT ──
@@ -79,8 +81,9 @@
   .app {
     display: flex;
     min-height: 100vh;
-    max-width: 1380px;
-    margin: 0 auto;
+    max-width: 100%;        /* fill the window — the old 1380px cap left a dead
+                               left margin on wide screens next to the work area */
+    margin: 0;
   }
   .main {
     flex: 1;
@@ -123,6 +126,7 @@
   }
   .day-nav {
     display: flex;
+    flex-wrap: wrap;
     gap: 3px;
     margin-top: 14px;
     padding-bottom: 14px;
@@ -157,9 +161,9 @@
 
   /* ── FOCUS CARD ── */
   .focus-card {
-    margin: 16px 0 8px;
-    padding: 18px 20px;
-    background: linear-gradient(135deg, rgba(212,164,74,0.12), rgba(212,164,74,0.04));
+    margin: 16px 0 14px;
+    padding: 24px 26px;
+    background: radial-gradient(120% 140% at 0% 0%, rgba(226,178,87,0.15), rgba(226,178,87,0.03) 55%);
     border: 1px solid var(--accent-border);
     border-left: 4px solid var(--accent);
     border-radius: var(--r-card);
@@ -196,15 +200,17 @@
     50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(212,164,74,0); }
   }
   .focus-title {
-    font-size: 18px;
+    font-size: 26px;
     font-weight: 700;
     color: var(--text);
-    margin-bottom: 4px;
+    margin-bottom: 5px;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
   }
   .focus-sub {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
-    line-height: 1.4;
+    line-height: 1.45;
   }
   .focus-countdown {
     font-family: 'JetBrains Mono', monospace;
@@ -237,12 +243,11 @@
     margin: 16px 0 8px;
   }
   .cd-hero {
-    flex: 1 1 240px;
+    flex: 1 1 210px;
     min-width: 0;
-    padding: 16px 20px;
-    background: linear-gradient(135deg, rgba(212,164,74,0.16), rgba(212,164,74,0.04));
+    padding: 11px 14px;
+    background: linear-gradient(135deg, rgba(212,164,74,0.12), rgba(212,164,74,0.03));
     border: 1px solid var(--accent-border);
-    border-left: 4px solid var(--accent);
     border-radius: var(--r-card);
     position: relative;
     overflow: hidden;
@@ -253,7 +258,7 @@
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--accent);
-    margin-bottom: 10px;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
     gap: 7px;
@@ -268,10 +273,10 @@
     gap: 12px;
   }
   .cd-hero-num {
-    font-size: 46px;
+    font-size: 30px;
     font-weight: 800;
     line-height: 0.9;
-    color: var(--text);
+    color: var(--accent);
     font-variant-numeric: tabular-nums;
   }
   .cd-hero-unit {
@@ -285,7 +290,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 12px;
+    margin-top: 9px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
     color: var(--accent);
@@ -591,34 +596,39 @@
 
   /* Non-negotiables strip on main view */
   .nn-strip {
-    margin: 14px 0 14px;
-    padding: 10px 14px 12px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: var(--r-card);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 2px 0 18px;       /* tucked tight under the focus hero */
+    padding: 0;
+    background: transparent;
+    border: none;
   }
   .nn-strip-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 1.6px;
+    font-size: 9px;
+    letter-spacing: 1.8px;
     text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 8px;
+    color: var(--faint, #8a8fa0);
+    white-space: nowrap;
+    margin: 0;
   }
   .nn-strip-items {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    flex: 1;
   }
   .nn-chip {
     display: flex;
     align-items: center;
     gap: 7px;
-    padding: 7px 12px;
+    padding: 5px 11px;
     background: var(--s2);
     border: 1px solid var(--border);
-    border-radius: var(--r-ctl);
-    font-size: 13px;
+    border-radius: var(--r-chip);
+    font-size: 12px;
     color: var(--text2);
     cursor: pointer;
     transition: all .15s;
@@ -1511,6 +1521,21 @@
   .wt-rm:hover { color: #c45050; }
 
   /* Events list */
+  .ev-group {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--faint, #8a8fa0);
+    margin: 12px 0 4px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .ev-group:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
   .ev-item {
     display: flex;
     align-items: center;
@@ -1520,6 +1545,7 @@
     font-size: 12px;
   }
   .ev-item:last-child { border-bottom: none; }
+  .ev-group + .ev-item { border-bottom: 1px solid rgba(255,255,255,0.06); }
   .ev-date {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
@@ -1552,7 +1578,9 @@
     font-size: 11px;
     color: var(--muted);
     line-height: 1.5;
-    margin-top: auto;
+    margin-top: 4px;        /* was margin-top:auto, which shoved this to the
+                               bottom of the sidebar and created the empty gap
+                               + scrollbar. Let it flow under the content. */
     border-top: 1px solid var(--border);
     display: flex;
     align-items: flex-start;
@@ -1845,7 +1873,7 @@
     </div>
 
     <!-- This Week (collapsible) -->
-    <div class="sb-sec" style="flex:1;">
+    <div class="sb-sec">
       <div class="sb-h clickable" onclick="toggleSbSec('wkList','wkChev')">
         <span class="sb-h-icon">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
@@ -3703,6 +3731,24 @@ function renderMain() {
           </div>`;
       }
     }
+  } else if (!isWeekend(viewDay)) {
+    // ── DAY-HEADER HERO (other weekdays — planning ahead / looking back) ──
+    const vd = new Date(viewDay + 'T12:00:00');
+    const wdName = vd.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    const isPastDay = viewDay < today();
+    const dayTasks = getAllTasks(viewDay);
+    const dDone = dayTasks.filter(t => isDone(t.id, viewDay)).length;
+    const label = isPastDay ? 'LOOKING BACK' : 'PLANNING AHEAD';
+    let sub;
+    if (isPastDay) sub = dayTasks.length ? `${dDone}/${dayTasks.length} tasks done that day.` : 'Nothing was scheduled.';
+    else if (dayTasks.length) sub = `${dayTasks.length} task${dayTasks.length > 1 ? 's' : ''} planned${dDone ? ` · ${dDone} already done` : ''}.`;
+    else sub = 'Nothing planned yet — add something below.';
+    htm += `
+      <div class="focus-card" style="border-left-color:var(--muted);background:radial-gradient(120% 140% at 0% 0%, rgba(138,143,184,0.10), transparent 55%);">
+        <div class="focus-label" style="color:var(--muted);"><div class="focus-pulse" style="background:var(--muted);animation:none;"></div>${label}</div>
+        <div class="focus-title">${wdName}</div>
+        <div class="focus-sub">${sub}</div>
+      </div>`;
   }
 
   // Events visible in sidebar — no banners needed
@@ -3714,27 +3760,10 @@ function renderMain() {
     htm += nnStripHtml(viewDay);
   }
 
-  // Progress
+  // Progress numbers live in the sidebar stat pills (streak / done / non-negs /
+  // blocked) — the duplicated main-column bar was removed in the Focus-First pass
+  // to keep the top of the day calm. Template still needed below for blocks.
   const tmpl = getTemplateForDay(viewDay);
-  const allT = getAllTasks(viewDay);
-  const doneC = allT.filter(t=>isDone(t.id, viewDay)).length;
-  const pct = allT.length ? Math.round(doneC/allT.length*100) : 0;
-  const nnDone = isWknd ? 0 : NN.filter(n=>isDone(n.link, viewDay)).length;
-  const totalMins = tmpl.filter(b=>!b.isBreak).reduce((s,b)=>s+b.dur,0);
-
-  if (!isWknd) {
-    htm += `
-      <div class="prog">
-        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
-        <div class="prog-text"><strong>${pct}%</strong></div>
-      </div>
-      <div class="prog-detail">
-        <div class="pd"><b>${doneC}</b>/${allT.length} tasks</div>
-        <div class="pd"><b>${nnDone}</b>/${NN.length} non-negs</div>
-        <div class="pd"><b>${Math.floor(totalMins/60)}h${totalMins%60>0?totalMins%60+'m':''}</b> blocked</div>
-      </div>`;
-
-  }
 
   // Blocks
   htm += '<div class="blocks">';
@@ -4150,12 +4179,8 @@ function shortDayCapacityHtml(day) {
       <span class="cap-text"><b>Short day</b> · ~4.5h work, pickup at 14:00</span>
     </div>`;
   }
-  if (dow === 2 || dow === 3 || dow === 4) {
-    return `<div class="capacity-banner full">
-      <span class="cap-dot"></span>
-      <span class="cap-text"><b>Full day</b> · ~8h available</span>
-    </div>`;
-  }
+  // "Full day · ~8h available" banner removed — it stated the obvious and added
+  // top-of-day clutter. Only the short-day pickup reminder earns its place.
   return '';
 }
 
@@ -4448,7 +4473,8 @@ function renderEvents() {
     el.innerHTML = '<div style="font-size:11px;color:#5e6280;font-style:italic;">No upcoming events.</div>';
     return;
   }
-  el.innerHTML = upcoming.slice(0,8).map(ev=>{
+
+  const evItemHtml = (ev) => {
     const dateStr = ev.nextDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const soon = ev.daysAway <= 7;
     const timeStr = ev.time ? ' ' + ev.time : '';
@@ -4464,7 +4490,33 @@ function renderEvents() {
       ${pinTag}
       <span class="ev-rm" onclick="event.stopPropagation();rmEvent('${ev.id}')">&times;</span>
     </div>`;
-  }).join('');
+  };
+
+  // Group nearest-first: "This week" / "Next week", then by real calendar month
+  // (so a 28-day-out July event reads "July", not a misleading "This month").
+  const todayD = new Date(today() + 'T12:00:00');
+  const todayDow = todayD.getDay();                  // 0=Sun..6=Sat
+  const daysToEndOfWeek = (7 - todayDow) % 7;        // days until upcoming Sunday
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const labelFor = (ev) => {
+    if (ev.daysAway <= daysToEndOfWeek) return 'This week';
+    if (ev.daysAway <= daysToEndOfWeek + 7) return 'Next week';
+    const d = ev.nextDate;
+    return d.getFullYear() === todayD.getFullYear() ? MONTHS[d.getMonth()] : `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
+  // upcoming is already sorted nearest-first, so groups come out in order.
+  const groups = [];
+  const byLabel = {};
+  for (const ev of upcoming) {
+    const label = labelFor(ev);
+    if (!(label in byLabel)) { byLabel[label] = groups.length; groups.push({ label, items: [] }); }
+    groups[byLabel[label]].items.push(ev);
+  }
+
+  el.innerHTML = groups
+    .map(g => `<div class="ev-group">${g.label}</div>${g.items.map(evItemHtml).join('')}`)
+    .join('');
 }
 
 function renderWeek() {
