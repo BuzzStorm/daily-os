@@ -1,7 +1,7 @@
 // Daily OS service worker — network-first with cache fallback.
 // Always serves fresh code when online; works offline from cache.
 // Sync API calls (different origin) are never intercepted.
-const CACHE = 'dailyos-v2';
+const CACHE = 'dailyos-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 

@@ -5306,7 +5306,15 @@ if (maybeAutoConnectFromHash()) {
 
 // Service worker for offline/PWA (only when served over https)
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js').then((reg) => { reg.update(); }).catch(() => {});
+  // When a new worker takes control (e.g. after a cache-version bump), reload once
+  // so the fresh code/HTML lands without the user needing a manual hard-refresh.
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloaded) return;
+    _swReloaded = true;
+    location.reload();
+  });
 }
 
 updateBackupLabel();
