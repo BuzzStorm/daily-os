@@ -2273,17 +2273,56 @@ if (!S._swim9am) {
   dataChanged = true;
 }
 
-// Man Utd fixtures
+// Man Utd 2026/27 Premier League fixtures (released 2026-06-19; all subject to change)
 [
-  { date:'2026-03-15', text:'Man Utd vs Aston Villa (H)', time:'14:00' },
-  { date:'2026-03-20', text:'Bournemouth vs Man Utd (A)', time:'20:00' },
-  { date:'2026-04-13', text:'Man Utd vs Leeds United (H)', time:'20:00' },
-  { date:'2026-04-18', text:'Chelsea vs Man Utd (A)', time:'20:00' },
-  { date:'2026-04-27', text:'Man Utd vs Brentford (H)', time:'20:00' },
-  { date:'2026-05-02', text:'Man Utd vs Liverpool (H)', time:'15:00' },
-  { date:'2026-05-09', text:'Sunderland vs Man Utd (A)', time:'15:00' },
-  { date:'2026-05-17', text:'Man Utd vs Nottingham Forest (H)', time:'15:00' },
-  { date:'2026-05-24', text:'Brighton vs Man Utd (A)', time:'16:00' },
+  // August
+  { date:'2026-08-22', text:'Hull City vs Man Utd (A)',          time:'12:30' },
+  { date:'2026-08-29', text:'Man Utd vs Ipswich Town (H)',       time:'15:00' },
+  // September
+  { date:'2026-09-05', text:'Everton vs Man Utd (A)',            time:'15:00' },
+  { date:'2026-09-12', text:'Man Utd vs Man City (H)',           time:'15:00' },
+  { date:'2026-09-19', text:'Fulham vs Man Utd (A)',             time:'15:00' },
+  // October
+  { date:'2026-10-10', text:'Man Utd vs Tottenham (H)',          time:'15:00' },
+  { date:'2026-10-17', text:'Leeds United vs Man Utd (A)',       time:'15:00' },
+  { date:'2026-10-24', text:'Man Utd vs Bournemouth (H)',        time:'15:00' },
+  { date:'2026-10-31', text:'Chelsea vs Man Utd (A)',            time:'15:00' },
+  // November
+  { date:'2026-11-07', text:'Man Utd vs Aston Villa (H)',        time:'15:00' },
+  { date:'2026-11-21', text:'Liverpool vs Man Utd (A)',          time:'15:00' },
+  { date:'2026-11-28', text:'Man Utd vs Brentford (H)',          time:'15:00' },
+  // December
+  { date:'2026-12-02', text:'Newcastle vs Man Utd (A)',          time:'20:00' },
+  { date:'2026-12-05', text:'Man Utd vs Coventry City (H)',      time:'15:00' },
+  { date:'2026-12-12', text:'Crystal Palace vs Man Utd (A)',     time:'15:00' },
+  { date:'2026-12-19', text:'Arsenal vs Man Utd (A)',            time:'15:00' },
+  { date:'2026-12-26', text:'Man Utd vs Nottingham Forest (H)',  time:'15:00' },
+  { date:'2026-12-30', text:'Man Utd vs Sunderland (H)',         time:'20:00' },
+  // January
+  { date:'2027-01-02', text:'Brighton vs Man Utd (A)',           time:'15:00' },
+  { date:'2027-01-06', text:'Man Utd vs Newcastle (H)',          time:'20:00' },
+  { date:'2027-01-16', text:'Aston Villa vs Man Utd (A)',        time:'15:00' },
+  { date:'2027-01-23', text:'Man Utd vs Liverpool (H)',          time:'15:00' },
+  { date:'2027-01-30', text:'Brentford vs Man Utd (A)',          time:'15:00' },
+  // February
+  { date:'2027-02-06', text:'Man Utd vs Chelsea (H)',            time:'15:00' },
+  { date:'2027-02-10', text:'Man Utd vs Brighton (H)',           time:'20:00' },
+  { date:'2027-02-20', text:'Nottingham Forest vs Man Utd (A)',  time:'15:00' },
+  { date:'2027-02-27', text:'Man Utd vs Arsenal (H)',            time:'15:00' },
+  // March
+  { date:'2027-03-03', text:'Sunderland vs Man Utd (A)',         time:'20:00' },
+  { date:'2027-03-13', text:'Man Utd vs Everton (H)',            time:'15:00' },
+  { date:'2027-03-20', text:'Man City vs Man Utd (A)',           time:'15:00' },
+  // April
+  { date:'2027-04-10', text:'Man Utd vs Hull City (H)',          time:'15:00' },
+  { date:'2027-04-17', text:'Ipswich Town vs Man Utd (A)',       time:'15:00' },
+  { date:'2027-04-24', text:'Man Utd vs Crystal Palace (H)',     time:'15:00' },
+  // May
+  { date:'2027-05-01', text:'Coventry City vs Man Utd (A)',      time:'15:00' },
+  { date:'2027-05-08', text:'Bournemouth vs Man Utd (A)',        time:'15:00' },
+  { date:'2027-05-15', text:'Man Utd vs Leeds United (H)',       time:'15:00' },
+  { date:'2027-05-23', text:'Tottenham vs Man Utd (A)',          time:'15:00' },
+  { date:'2027-05-30', text:'Man Utd vs Fulham (H)',             time:'16:00' },
 ].forEach(m => {
   if (ensureEvent(m.text, { text:m.text, date:m.date, repeat:'none', mufc:true, time:m.time, quiet:true })) dataChanged = true;
 });
