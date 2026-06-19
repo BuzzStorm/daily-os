@@ -2274,7 +2274,11 @@ if (!S._swim9am) {
 }
 
 // Man Utd 2026/27 Premier League fixtures (released 2026-06-19; all subject to change)
-[
+// Wrapped in a hoisted function so it can run at startup AND after every sync pull
+// (adoptState) — otherwise a remote state saved before these existed clobbers them.
+function ensureMufcFixtures() {
+  let changed = false;
+  [
   // August
   { date:'2026-08-22', text:'Hull City vs Man Utd (A)',          time:'12:30' },
   { date:'2026-08-29', text:'Man Utd vs Ipswich Town (H)',       time:'15:00' },
@@ -2323,9 +2327,12 @@ if (!S._swim9am) {
   { date:'2027-05-15', text:'Man Utd vs Leeds United (H)',       time:'15:00' },
   { date:'2027-05-23', text:'Tottenham vs Man Utd (A)',          time:'15:00' },
   { date:'2027-05-30', text:'Man Utd vs Fulham (H)',             time:'16:00' },
-].forEach(m => {
-  if (ensureEvent(m.text, { text:m.text, date:m.date, repeat:'none', mufc:true, time:m.time, quiet:true })) dataChanged = true;
-});
+  ].forEach(m => {
+    if (ensureEvent(m.text, { text:m.text, date:m.date, repeat:'none', mufc:true, time:m.time, quiet:true })) changed = true;
+  });
+  return changed;
+}
+if (ensureMufcFixtures()) dataChanged = true;
 
 // ── UK HOLIDAYS & NOTABLE DATES (England & Wales) ──
 // Bank holidays, Mothering Sunday and Father's Day move year to year (and bank
@@ -5111,6 +5118,7 @@ function adoptState(data) {
     // Re-apply countdown seeds/pins so a remote state saved before they existed
     // (or from an older client) can't permanently clobber them.
     ensureCountdowns();
+    ensureMufcFixtures();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
     render();
   } finally {
