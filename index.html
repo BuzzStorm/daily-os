@@ -1014,6 +1014,14 @@
   .inline-event.is-holiday:hover { background: rgba(110,168,184,0.14); }
   .inline-event.is-holiday .ie-bar { background: #6ea8b8; }
   .inline-event.is-holiday .ie-badge { color: #6ea8b8; }
+  /* Man Utd fixture variant — United red */
+  .inline-event.is-mufc {
+    background: rgba(218,41,28,0.08);
+    border-color: rgba(218,41,28,0.35);
+  }
+  .inline-event.is-mufc:hover { background: rgba(218,41,28,0.14); }
+  .inline-event.is-mufc .ie-bar { background: #DA291C; }
+  .inline-event.is-mufc .ie-badge { color: #DA291C; opacity: 0.9; }
   .ie-time.ie-allday {
     font-size: 8px;
     letter-spacing: 1px;
@@ -3846,8 +3854,8 @@ function renderMain() {
         if (item._type === 'event') {
           const locStr = item.location ? ` &middot; ${item.location}` : '';
           const notesStr = item.notes ? ` &middot; ${item.notes}` : '';
-          const accent = item.holiday ? '#6ea8b8' : 'var(--accent)';
-          const subLabel = item.holiday ? 'Holiday' : 'Event';
+          const accent = item.mufc ? '#DA291C' : item.holiday ? '#6ea8b8' : 'var(--accent)';
+          const subLabel = item.mufc ? 'Man Utd' : item.holiday ? 'Holiday' : 'Event';
           htm += `<div class="block" style="border-left:3px solid ${accent};cursor:pointer;" onclick="editEvent('${item.id}')">
             <div class="bk-hd">
               <div class="bk-cat" style="background:${accent};"></div>
@@ -4044,14 +4052,14 @@ function renderInlineEvent(ev) {
   const timeCell = ev.time
     ? `<div class="ie-time">${ev.time}</div>`
     : `<div class="ie-time ie-allday">ALL&nbsp;DAY</div>`;
-  return `<div class="inline-event ${isPast?'is-past':''} ${ev.holiday?'is-holiday':''}" onclick="editEvent('${ev.id}')">
+  return `<div class="inline-event ${isPast?'is-past':''} ${ev.holiday?'is-holiday':''} ${ev.mufc?'is-mufc':''}" onclick="editEvent('${ev.id}')">
     <div class="ie-bar"></div>
     ${timeCell}
     <div class="ie-info">
-      <div class="ie-title">${ev.text}</div>
+      <div class="ie-title">${ev.mufc?'⚽ ':''}${ev.text}</div>
       ${(ev.location || ev.notes) ? `<div class="ie-sub">${locStr}${notesStr}</div>` : ''}
     </div>
-    <div class="ie-badge">${ev.holiday?'HOLIDAY':'EVENT'}</div>
+    <div class="ie-badge">${ev.mufc?'MAN UTD':ev.holiday?'HOLIDAY':'EVENT'}</div>
   </div>`;
 }
 
@@ -4528,11 +4536,12 @@ function renderEvents() {
     const locTag = ev.location ? `<span style="font-size:10px;color:var(--muted);"> ${ev.location}</span>` : '';
     const bellTag = ev.reminder != null ? `<span style="font-size:9px;color:var(--accent);margin-left:3px;" title="Reminder set">&#128276;</span>` : '';
     const holTag = ev.holiday ? `<span style="font-size:8px;color:#6ea8b8;border:1px solid rgba(110,168,184,0.4);border-radius:3px;padding:0 3px;margin-left:5px;letter-spacing:0.5px;vertical-align:middle;">HOL</span>` : '';
+    const mufcTag = ev.mufc ? `<span style="font-size:8px;color:#DA291C;border:1px solid rgba(218,41,28,0.45);border-radius:3px;padding:0 3px;margin-left:5px;letter-spacing:0.5px;vertical-align:middle;">MUFC</span>` : '';
     const isPinned = isPinnedCountdown(ev.id);
     const pinTag = `<span class="ev-pin ${isPinned?'active':''}" title="${isPinned?'Unpin countdown':'Pin as countdown'}" onclick="event.stopPropagation();togglePinCountdown('${ev.id}')">&#128204;</span>`;
     return `<div class="ev-item" style="cursor:pointer;" onclick="editEvent('${ev.id}')">
       <div class="ev-date">${dateStr}${timeStr}</div>
-      <div class="ev-txt">${ev.text}${holTag}${locTag}${bellTag}</div>
+      <div class="ev-txt">${ev.text}${mufcTag}${holTag}${locTag}${bellTag}</div>
       <div class="ev-days ${ev.daysAway===0?'today':soon?'soon':''}">${ev.daysAway===0?'Today':ev.daysAway+'d'}</div>
       ${pinTag}
       <span class="ev-rm" onclick="event.stopPropagation();rmEvent('${ev.id}')">&times;</span>
@@ -4854,7 +4863,7 @@ function searchTasks(query) {
   for (const ev of S.events) {
     if (ev.text.toLowerCase().includes(q)) {
       const loc = ev.location ? ` (${ev.location})` : '';
-      results.push({ text: ev.text + loc, type: 'event', cat: null, day: new Date(ev.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}), jumpDay: ev.date, eventId: ev.id });
+      results.push({ text: ev.text + loc, type: 'event', cat: null, mufc: !!ev.mufc, day: new Date(ev.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}), jumpDay: ev.date, eventId: ev.id });
     }
   }
 
@@ -4873,11 +4882,11 @@ function searchTasks(query) {
 
   el.innerHTML = results.slice(0, 10).map((r, i) => {
     const catCls = r.cat ? 'cat-bg-' + r.cat : '';
-    const catBg = r.cat ? '' : 'background:var(--accent);';
+    const catBg = r.mufc ? 'background:#DA291C;' : (r.cat ? '' : 'background:var(--accent);');
     const meta = r.type === 'recurring' ? 'daily' : (r.day || '');
     return `<div class="sr-item" onclick="searchJump(${i})" data-idx="${i}">
       <div class="sr-dot ${catCls}" style="${catBg}"></div>
-      <div class="sr-text">${hl(r.text)}</div>
+      <div class="sr-text">${r.mufc?'⚽ ':''}${hl(r.text)}</div>
       <div class="sr-meta">${meta}</div>
     </div>`;
   }).join('');
