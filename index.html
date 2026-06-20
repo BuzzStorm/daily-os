@@ -1409,6 +1409,32 @@
   .pa-msg.show { display: block; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
 
+  /* App-update toast — gentle "update available" prompt for long-lived PWA sessions.
+     z-index sits below the 1000 modal tier so an open modal always paints over it. */
+  .update-toast {
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(8px);
+    z-index: 900;
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px 9px 14px;
+    background: var(--s2);
+    border: 1px solid var(--accent-border);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+    font-size: 12px; color: var(--text);
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .update-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .update-toast .ut-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); flex-shrink: 0; }
+  .update-toast .ut-text { white-space: nowrap; }
+  .update-toast .ut-refresh { font-family: inherit; font-size: 11px; font-weight: 600; color: var(--bg); background: var(--accent); border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+  .update-toast .ut-refresh:hover { filter: brightness(1.08); }
+  .update-toast .ut-refresh:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .update-toast .ut-dismiss { font-family: inherit; font-size: 16px; line-height: 1; color: var(--muted); background: none; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 26px; min-height: 26px; padding: 0; }
+  .update-toast .ut-dismiss:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .update-toast .ut-dismiss:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
+
   /* Add Event form */
   .ae-form { display: flex; flex-direction: column; gap: 6px; }
   .ae-row { display: flex; gap: 5px; }
@@ -5292,9 +5318,76 @@ function disconnectSync() {
   showPa('Sync disconnected. Data stays on this device.');
 }
 
+// ── APP UPDATE DETECTION ──
+// Surfaces a gentle "Update available" toast when a newer build is deployed
+// while this session is open (e.g. a PWA left running for days). Zero-maintenance:
+// polls the deployed page's ETag (fallback Last-Modified), which GitHub Pages
+// changes on every deploy — so there's no build-version constant to bump. A
+// cache-busted HEAD avoids the CDN's 10-min edge TTL and downloads no body. The
+// network-first SW means tapping Refresh always loads the fresh code.
+let _appVersionTag = null;     // baseline: the build this session is running (set once, then stable)
+let _dismissedTag = null;      // a build the user dismissed — don't re-nag for this exact one
+let _baselinePending = false;  // serializes concurrent baseline establishment
+let _updateToastUp = false;
+let _reloading = false;        // shared by every reload path so the page never reloads twice
+let _lastUpdateCheck = 0;      // throttle, since visibilitychange can fire on every app-switch
+
+// Single reload gate: the toast's Refresh and the SW controllerchange handler both
+// route through this, so a deploy that changes BOTH the page and sw.js can't double-reload.
+function reloadOnce() { if (_reloading) return; _reloading = true; location.reload(); }
+
+async function fetchVersionTag() {
+  try {
+    const res = await fetch(location.pathname + '?_v=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+    if (!res.ok || res.type !== 'basic') return null;  // ignore non-200 and cross-origin (captive-portal) responses
+    return res.headers.get('etag') || res.headers.get('last-modified');
+  } catch { return null; }
+}
+
+async function checkForAppUpdate() {
+  if (_reloading || _updateToastUp) return;
+  const now = Date.now();
+  if (now - _lastUpdateCheck < 300000) return;         // at most one network check per 5 min
+  _lastUpdateCheck = now;
+  if (_appVersionTag === null) {                       // establish the running build's baseline once
+    if (_baselinePending) return;
+    _baselinePending = true;
+    const t = await fetchVersionTag();
+    _baselinePending = false;
+    if (t) _appVersionTag = t;                         // leave null on failure so a later check retries
+    return;
+  }
+  const tag = await fetchVersionTag();
+  if (tag && tag !== _appVersionTag && tag !== _dismissedTag) showUpdateToast(tag);
+}
+
+function showUpdateToast(newTag) {
+  if (_reloading || _updateToastUp) return;
+  _updateToastUp = true;
+  const t = document.createElement('div');
+  t.className = 'update-toast';
+  t.setAttribute('role', 'status');
+  t.setAttribute('aria-live', 'polite');
+  t.innerHTML = '<span class="ut-dot"></span>'
+    + '<span class="ut-text">Update available</span>'
+    + '<button class="ut-refresh">Refresh</button>'
+    + '<button class="ut-dismiss" aria-label="Dismiss">×</button>';
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  t.querySelector('.ut-refresh').onclick = () => reloadOnce();
+  t.querySelector('.ut-dismiss').onclick = () => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 200);
+    // Remember this exact build as dismissed; keep the baseline as the running build so a
+    // *further* deploy still prompts (even if it lands before the next check).
+    _dismissedTag = newTag;
+    _updateToastUp = false;
+  };
+}
+
 // Sync triggers
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') cloudPull();
+  if (document.visibilityState === 'visible') { cloudPull(); checkForAppUpdate(); }
   else syncFlushBeacon();
 });
 window.addEventListener('pagehide', syncFlushBeacon);
@@ -5318,12 +5411,16 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').then((reg) => { reg.update(); }).catch(() => {});
   // When a new worker takes control (e.g. after a cache-version bump), reload once
   // so the fresh code/HTML lands without the user needing a manual hard-refresh.
-  let _swReloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_swReloaded) return;
-    _swReloaded = true;
-    location.reload();
-  });
+  // Routed through reloadOnce() so it can't collide with a Refresh-button reload.
+  navigator.serviceWorker.addEventListener('controllerchange', () => reloadOnce());
+}
+
+// Update detection (needs a server to poll, so http(s) only — not file://)
+if (location.protocol.startsWith('http')) {
+  checkForAppUpdate();                                              // capture baseline now
+  setInterval(() => {
+    if (document.visibilityState === 'visible') checkForAppUpdate();  // re-check while in use
+  }, 900000);                                                       // every 15 min
 }
 
 updateBackupLabel();
