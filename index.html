@@ -2323,11 +2323,11 @@ function ensureMufcFixtures() {
   [
   // August
   { date:'2026-08-22', text:'Hull City vs Man Utd (A)',          time:'12:30' },
-  { date:'2026-08-29', text:'Man Utd vs Ipswich Town (H)',       time:'15:00' },
+  { date:'2026-08-30', text:'Man Utd vs Ipswich Town (H)',       time:'16:30' },
   // September
-  { date:'2026-09-05', text:'Everton vs Man Utd (A)',            time:'15:00' },
-  { date:'2026-09-12', text:'Man Utd vs Man City (H)',           time:'15:00' },
-  { date:'2026-09-19', text:'Fulham vs Man Utd (A)',             time:'15:00' },
+  { date:'2026-09-06', text:'Everton vs Man Utd (A)',            time:'14:00' },
+  { date:'2026-09-13', text:'Man Utd vs Man City (H)',           time:'16:30' },
+  { date:'2026-09-20', text:'Fulham vs Man Utd (A)',             time:'16:30' },
   // October
   { date:'2026-10-10', text:'Man Utd vs Tottenham (H)',          time:'15:00' },
   { date:'2026-10-17', text:'Leeds United vs Man Utd (A)',       time:'15:00' },
@@ -2375,6 +2375,74 @@ function ensureMufcFixtures() {
   return changed;
 }
 if (ensureMufcFixtures()) dataChanged = true;
+
+// ── LIVE FIXTURE REFRESH (ESPN, keyless) ──
+// TV picks move Premier League games, so the static table above goes stale.
+// Every few days (per device — throttle lives in localStorage, not S, to avoid
+// sync churn) pull the live schedule and update stored fixtures in place.
+// The static table stays add-only; this is the only thing that updates existing
+// fixture events. Fails silently on any network/shape problem and retries the
+// throttle window next load (timestamp only written on success).
+const MUFC_FIXTURE_CHECK_LS = 'dailyOS_mufcFixtureCheck';
+async function refreshMufcFixtures() {
+  try {
+    const last = localStorage.getItem(MUFC_FIXTURE_CHECK_LS);
+    if (last && Date.now() - new Date(last).getTime() < 3 * 24 * 60 * 60 * 1000) return;
+    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/360/schedule?fixture=true');
+    if (!res.ok) return;
+    const json = await res.json();
+    if (!json || !Array.isArray(json.events)) return;
+    // ESPN full names → the short names used in the fixture table. Anything not
+    // listed already matches the table verbatim (Hull City, Ipswich Town, …).
+    const MUFC_ALIASES = {
+      'Manchester City': 'Man City',
+      'Tottenham Hotspur': 'Tottenham',
+      'AFC Bournemouth': 'Bournemouth',
+      'Brighton & Hove Albion': 'Brighton',
+      'Newcastle United': 'Newcastle',
+      'West Ham United': 'West Ham',
+      'Wolverhampton Wanderers': 'Wolves',
+      'Manchester United': 'Man Utd',
+    };
+    const fixtures = [];
+    json.events.forEach(event => {
+      const comp = event.competitions && event.competitions[0];
+      if (!event.date || !comp || !Array.isArray(comp.competitors)) return;
+      const utd = comp.competitors.find(c => c.team && c.team.id === '360');
+      const opp = comp.competitors.find(c => c.team && c.team.id !== '360');
+      if (!utd || !opp) return;
+      const oppName = MUFC_ALIASES[opp.team.displayName] || opp.team.displayName;
+      const text = utd.homeAway === 'home'
+        ? 'Man Utd vs ' + oppName + ' (H)'
+        : oppName + ' vs Man Utd (A)';
+      const ko = new Date(event.date); // UTC kickoff → device-local date/time
+      fixtures.push({
+        text,
+        date: toDateStr(ko),
+        time: String(ko.getHours()).padStart(2, '0') + ':' + String(ko.getMinutes()).padStart(2, '0'),
+      });
+    });
+    localStorage.setItem(MUFC_FIXTURE_CHECK_LS, new Date().toISOString());
+    if (_applyingRemote) return; // a sync pull is mid-flight; try again next window
+    let changed = false;
+    fixtures.forEach(f => {
+      const ev = S.events.find(e => e.mufc && e.text === f.text);
+      if (ev) {
+        if (ev.date !== f.date || ev.time !== f.time) {
+          ev.date = f.date;
+          ev.time = f.time;
+          changed = true;
+        }
+      } else if (ensureEvent(f.text, { text:f.text, date:f.date, repeat:'none', mufc:true, time:f.time, quiet:true })) {
+        changed = true;
+      }
+      // Never delete: fixtures missing from the API are left alone.
+    });
+    if (changed) { save(); render(); } // save() persists + scheduleCloudPush()
+  } catch (e) {
+    console.warn('MUFC fixture refresh failed', e);
+  }
+}
 
 // ── UK HOLIDAYS & NOTABLE DATES (England & Wales) ──
 // Bank holidays, Mothering Sunday and Father's Day move year to year (and bank
@@ -5443,6 +5511,8 @@ setInterval(() => {
 }, 30000);
 // Initial reminder check
 setTimeout(checkReminders, 2000);
+// Live MUFC fixture refresh (throttled to once per 3 days inside the fn)
+setTimeout(refreshMufcFixtures, 3000);
 </script>
 </body>
 </html>
