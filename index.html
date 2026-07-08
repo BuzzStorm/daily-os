@@ -2377,21 +2377,30 @@ function ensureMufcFixtures() {
 if (ensureMufcFixtures()) dataChanged = true;
 
 // ── LIVE FIXTURE REFRESH (ESPN, keyless) ──
-// TV picks move Premier League games, so the static table above goes stale.
+// TV picks move Premier League games, so the static table above goes stale —
+// and cup ties (FA Cup, Carabao, Europe) only exist once draws are made.
 // Every few days (per device — throttle lives in localStorage, not S, to avoid
-// sync churn) pull the live schedule and update stored fixtures in place.
+// sync churn) pull the live schedules and update stored fixtures in place.
 // The static table stays add-only; this is the only thing that updates existing
 // fixture events. Fails silently on any network/shape problem and retries the
-// throttle window next load (timestamp only written on success).
+// throttle window next load (timestamp only written when the league feed
+// succeeds — cup feed failures never block the stamp).
+// Cup fixtures get a competition suffix in the text (e.g. " · FA Cup") so a
+// league game and a cup tie against the same opponent at the same venue can
+// never collide; eng.1 keeps the phase-1 canonical text exactly for backward
+// compat with events already stored on devices.
 const MUFC_FIXTURE_CHECK_LS = 'dailyOS_mufcFixtureCheck';
+const MUFC_COMPETITIONS = [
+  { code:'eng.1',          suffix:'' },
+  { code:'eng.fa',         suffix:' · FA Cup' },
+  { code:'eng.league_cup', suffix:' · Carabao Cup' },
+  { code:'uefa.champions', suffix:' · Champions League' },
+  { code:'uefa.europa',    suffix:' · Europa League' },
+];
 async function refreshMufcFixtures() {
   try {
     const last = localStorage.getItem(MUFC_FIXTURE_CHECK_LS);
     if (last && Date.now() - new Date(last).getTime() < 3 * 24 * 60 * 60 * 1000) return;
-    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/360/schedule?fixture=true');
-    if (!res.ok) return;
-    const json = await res.json();
-    if (!json || !Array.isArray(json.events)) return;
     // ESPN full names → the short names used in the fixture table. Anything not
     // listed already matches the table verbatim (Hull City, Ipswich Town, …).
     const MUFC_ALIASES = {
@@ -2404,39 +2413,78 @@ async function refreshMufcFixtures() {
       'Wolverhampton Wanderers': 'Wolves',
       'Manchester United': 'Man Utd',
     };
-    const fixtures = [];
-    json.events.forEach(event => {
-      const comp = event.competitions && event.competitions[0];
-      if (!event.date || !comp || !Array.isArray(comp.competitors)) return;
-      const utd = comp.competitors.find(c => c.team && c.team.id === '360');
-      const opp = comp.competitors.find(c => c.team && c.team.id !== '360');
-      if (!utd || !opp) return;
-      const oppName = MUFC_ALIASES[opp.team.displayName] || opp.team.displayName;
-      const text = utd.homeAway === 'home'
-        ? 'Man Utd vs ' + oppName + ' (H)'
-        : oppName + ' vs Man Utd (A)';
-      const ko = new Date(event.date); // UTC kickoff → device-local date/time
-      fixtures.push({
-        text,
-        date: toDateStr(ko),
-        time: String(ko.getHours()).padStart(2, '0') + ':' + String(ko.getMinutes()).padStart(2, '0'),
-      });
-    });
-    localStorage.setItem(MUFC_FIXTURE_CHECK_LS, new Date().toISOString());
+    const todayStr = toDateStr(new Date());
+    const fixtures = []; // { text, date, time } across all competitions
+    let leagueOk = false;
+    // Each competition is fetched + parsed in its own try/catch: one feed
+    // failing (or returning an unexpected shape) must not affect the others.
+    // Empty events arrays are normal (no draw yet / not in the competition).
+    await Promise.all(MUFC_COMPETITIONS.map(async cmp => {
+      try {
+        const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/' + cmp.code + '/teams/360/schedule?fixture=true');
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json || !Array.isArray(json.events)) return;
+        json.events.forEach(event => {
+          const comp = event.competitions && event.competitions[0];
+          if (!event.date || !comp || !Array.isArray(comp.competitors)) return;
+          const utd = comp.competitors.find(c => c.team && c.team.id === '360');
+          const opp = comp.competitors.find(c => c.team && c.team.id !== '360');
+          if (!utd || !opp) return;
+          const ko = new Date(event.date); // UTC kickoff → device-local date/time
+          const dateStr = toDateStr(ko);
+          // Stale-season guard: cup feeds serve LAST season until ESPN rolls
+          // them over. Never add or update past fixtures.
+          if (dateStr < todayStr) return;
+          const oppName = MUFC_ALIASES[opp.team.displayName] || opp.team.displayName;
+          const text = (utd.homeAway === 'home'
+            ? 'Man Utd vs ' + oppName + ' (H)'
+            : oppName + ' vs Man Utd (A)') + cmp.suffix;
+          fixtures.push({
+            text,
+            date: dateStr,
+            time: String(ko.getHours()).padStart(2, '0') + ':' + String(ko.getMinutes()).padStart(2, '0'),
+          });
+        });
+        if (cmp.code === 'eng.1') leagueOk = true;
+      } catch (e) { /* per-competition isolation: swallow and move on */ }
+    }));
+    if (leagueOk) localStorage.setItem(MUFC_FIXTURE_CHECK_LS, new Date().toISOString());
     if (_applyingRemote) return; // a sync pull is mid-flight; try again next window
-    let changed = false;
+    // Group by canonical text: one text can carry two future fixtures (e.g.
+    // UCL league-phase home vs X plus a knockout home leg vs X). Pair stored
+    // events and API fixtures in date order; update pairs in place, add any
+    // unpaired API fixtures. Never delete.
+    const byText = new Map();
     fixtures.forEach(f => {
-      const ev = S.events.find(e => e.mufc && e.text === f.text);
-      if (ev) {
-        if (ev.date !== f.date || ev.time !== f.time) {
-          ev.date = f.date;
-          ev.time = f.time;
+      if (!byText.has(f.text)) byText.set(f.text, []);
+      byText.get(f.text).push(f);
+    });
+    let changed = false;
+    byText.forEach((apiList, text) => {
+      apiList.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+      const stored = S.events
+        .filter(e => e.mufc && e.text === text)
+        .sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+      apiList.forEach((f, i) => {
+        const ev = stored[i];
+        if (ev) {
+          if (ev.date !== f.date || ev.time !== f.time) {
+            ev.date = f.date;
+            ev.time = f.time;
+            changed = true;
+          }
+        } else {
+          if (!ensureEvent(f.text, { text:f.text, date:f.date, repeat:'none', mufc:true, time:f.time, quiet:true })) {
+            // ensureEvent dedupes by text, so a SECOND fixture sharing a text
+            // (e.g. added moments ago in this loop) must be pushed directly
+            // using the same id/shape ensureEvent uses.
+            S.events.push({ id: uid(), text: f.text, date: f.date, repeat:'none', mufc:true, time: f.time, quiet:true });
+          }
           changed = true;
         }
-      } else if (ensureEvent(f.text, { text:f.text, date:f.date, repeat:'none', mufc:true, time:f.time, quiet:true })) {
-        changed = true;
-      }
-      // Never delete: fixtures missing from the API are left alone.
+      });
+      // Never delete: stored fixtures missing from the API are left alone.
     });
     if (changed) { save(); render(); } // save() persists + scheduleCloudPush()
   } catch (e) {

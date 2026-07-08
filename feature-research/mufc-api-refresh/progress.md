@@ -13,7 +13,13 @@
 5. Dead alias entry `'Manchester United'` — harmless.
 6. Name matching keys on ESPN `displayName`; a mid-season rename or promoted-club mismatch creates a visible duplicate rather than an update (never-delete keeps it safe).
 
-## Phase 2 (proposed, not started): cup competitions
+## Phase 2: cup competitions (2026-07-08) — implemented, reviewed, verdict: SHIP
+- `refreshMufcFixtures()` generalized to 5 competitions via `MUFC_COMPETITIONS` table (index.html ~2379-2493). eng.1 keeps phase-1 texts byte-identical; cups get ` · FA Cup` / ` · Carabao Cup` / ` · Champions League` / ` · Europa League` suffixes → no league/cup text collisions.
+- Per-feed try/catch isolation; past-kickoff skip (device-local, also applies to eng.1 now — benign); duplicate-text pairing (date-order) for e.g. UCL league-phase + knockout vs same opponent; adds fall back to direct `S.events.push({id: uid(), …})` when `ensureEvent` dedupes by text (field shape verified byte-identical to seeder output); throttle stamped only when eng.1 succeeded.
+- Verified: boot harness clean; live 5-feed test (eng.1 38/38, all cup feeds now return empty — ESPN cleared last season); mocked e2e 18/18.
+- Reviewer non-blocking notes: persistent eng.1 outage retries all 5 feeds each load (trivial); pairing can churn briefly if the USER hand-creates a duplicate-text mufc event (stabilizes); phase-1 stamp-before-guard ordering note still applies.
+
+## Phase 2 original design notes (kept for reference)
 - ESPN feeds confirmed live for team 360: `eng.fa` (FA Cup), `eng.league_cup` (Carabao), `uefa.champions`, `uefa.europa` — same endpoint/format as eng.1. Empty events when not participating / draw not made, so safe to poll all unconditionally.
 - Design care needed: text collisions (PL + cup tie vs same opponent, same venue → same canonical text would wrongly move the PL game). Cup events need a competition marker in the text (e.g. "Man Utd vs Chelsea (H) · FA Cup") and matching must include it. Cup fixtures appear automatically once draws are made — refresher picks them up on its 3-day cycle.
 - Note: FA Cup/UCL/Europa feeds still showed season 2025-26 "Final" on 2026-07-08 (season rolls over later); Carabao already on 2026-27.
