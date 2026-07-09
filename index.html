@@ -957,6 +957,73 @@
   }
   .t-rm:hover { color: #c45050; }
 
+  /* -- SIMPLE DAY CARD -- */
+  .sd-card {
+    background: var(--s1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 16px 8px;
+    margin-bottom: 14px;
+  }
+  .sd-card.drag-over { border-color: var(--accent); }
+  .sd-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .sd-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 2px;
+    color: var(--accent); text-transform: uppercase;
+  }
+  .sd-card.sd-park .sd-title { color: #b8905a; }
+  .sd-count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
+  .sd-progress { height: 3px; background: var(--s3); border-radius: 2px; overflow: hidden; margin: 6px 0 10px; }
+  .sd-progress i { display: block; height: 100%; background: var(--accent); transition: width .25s; }
+  /* events strip — the day's fixed points, not tickable */
+  .sd-ev {
+    display: flex; align-items: center; gap: 10px; padding: 7px 8px;
+    border-left: 2px solid var(--accent); background: rgba(212,164,74,0.06);
+    border-radius: 0 6px 6px 0; margin-bottom: 6px; cursor: pointer;
+  }
+  .sd-ev:hover { background: rgba(212,164,74,0.12); }
+  .sd-ev.mufc { border-left-color: #DA291C; background: rgba(218,41,28,0.07); }
+  .sd-ev.mufc:hover { background: rgba(218,41,28,0.13); }
+  .sd-ev.holiday { border-left-color: #6ea8b8; background: rgba(110,168,184,0.07); }
+  .sd-ev.holiday:hover { background: rgba(110,168,184,0.13); }
+  .sd-ev-time { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); min-width: 42px; flex-shrink: 0; }
+  .sd-ev.mufc .sd-ev-time { color: #DA291C; }
+  .sd-ev.holiday .sd-ev-time { color: #6ea8b8; }
+  .sd-ev-name { font-size: 13px; color: var(--text2); flex: 1; min-width: 0; }
+  .sd-ev-badge { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 1px; color: #8a90a8; flex-shrink: 0; }
+  .sd-ev.mufc .sd-ev-badge { color: #DA291C; }
+  /* task row extras */
+  .sd-grip {
+    color: #565b72; font-size: 13px; letter-spacing: -2px; cursor: grab;
+    opacity: 0; transition: opacity .15s; flex-shrink: 0; margin-top: 2px;
+  }
+  .task:hover .sd-grip { opacity: 1; }
+  .sd-cat { width: 3px; align-self: stretch; border-radius: 2px; flex-shrink: 0; }
+  .sd-carry {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.5px;
+    color: var(--accent); border: 1px solid rgba(212,164,74,0.4); border-radius: 6px;
+    padding: 1px 6px; flex-shrink: 0; margin-top: 3px;
+  }
+  .task .t-move, .task .t-rm { opacity: 0; transition: opacity .15s, color .12s; }
+  .task:hover .t-move, .task:hover .t-rm { opacity: 1; }
+  @media (hover: none) {
+    .sd-grip, .task .t-move, .task .t-rm { opacity: 0.45; }
+  }
+  .task.drop-above { box-shadow: 0 -2px 0 var(--accent); }
+  .sd-nudge {
+    display: flex; gap: 8px; align-items: center;
+    background: var(--s1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; color: var(--muted); margin-bottom: 14px;
+  }
+  .sd-menu {
+    position: fixed; background: var(--s2); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column; z-index: 999; min-width: 150px;
+  }
+  .sd-menu-item { font-size: 12px; color: var(--text2); padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+  .sd-menu-item:hover { background: var(--s3); }
+
   /* Inline event in day flow */
   .inline-event {
     display: flex;
@@ -1801,7 +1868,6 @@
         <div class="sb-stat-pill"><span class="sv accent" id="sStreak">0</span> streak</div>
         <div class="sb-stat-pill"><span class="sv" id="sTasks">0</span> done</div>
         <div class="sb-stat-pill" id="sNnPill"><span class="sv" id="sNn">0/5</span> non-negs</div>
-        <div class="sb-stat-pill" id="sHoursPill"><span class="sv" id="sHours">0h</span> blocked</div>
         <div class="sb-sync-pill" id="syncPill" onclick="openSyncSetup()" title="Cloud sync — click to set up or add a device">
           <span class="sync-dot" id="syncPillDot"></span><span id="syncPillText">sync off</span>
         </div>
@@ -1946,38 +2012,23 @@
 // ══════════════════════════════════════════════════
 
 // ── YOUR DAILY STRUCTURE ──
-// Stripped back: two halves of "Today's Work" sandwiching Gym + Lunch.
-// Anything that isn't gym/lunch lives in the mainwork zone.
-const TEMPLATE = [
-  {
-    id: 'mainwork_am', time: '09:00', end: '11:15', dur: 135,
-    title: "Today's Work", cat: 'liquidbiz',
-    sub: 'Post parcels. Pack orders. List stock. The work that pays.',
-    tasks: [
-      { id: 'nn_parcels', text: 'Pack & post orders', dur: 30 },
-      { id: 'nn_list', text: 'List stock on eBay', dur: 45 },
-    ],
-    workZone: true
-  },
-  {
-    id: 'gym', time: '11:15', end: '12:45', dur: 90,
-    title: 'Gym / Break', cat: 'life',
-    sub: 'Gym days: train + travel. Non-gym days: overflow + life admin.',
-    tasks: []
-  },
-  {
-    id: 'lunch', time: '12:45', end: '13:30', dur: 45,
-    title: 'Lunch', cat: 'break', sub: 'Eat. Refuel.',
-    tasks: [], isBreak: true
-  },
-  {
-    id: 'mainwork_pm', time: '13:30', end: '17:00', dur: 210,
-    title: "Today's Work", cat: 'liquidbiz',
-    sub: 'Keep going. Post, pack, list. Clear the day.',
-    tasks: [],
-    workZone: true
+// Simple Day: no time blocks. Each day is a single flat tick-list
+// (S.custom[day].list) plus the optional Parking Lot. The old template's
+// daily work tasks live on as plain weekday recurring tasks (see
+// workSeedTasks / the v4 migration).
+function workSeedTasks() {
+  const seeds = [];
+  const WORK = [
+    { key: 'parcels', text: 'Pack & post orders', dur: 30 },
+    { key: 'list',    text: 'List stock on eBay', dur: 45 },
+  ];
+  for (const w of WORK) {
+    for (let dow = 1; dow <= 5; dow++) {
+      seeds.push({ id: 'rec_work_' + w.key + '_' + dow, text: w.text, cat: 'liquidbiz', dur: w.dur, dayOfWeek: dow });
+    }
   }
-];
+  return seeds;
+}
 
 // Daily non-negotiables — small quick ticks, render as chips above Today's Work.
 // `link` is the unique key used for done state in S.done[day][link].
@@ -2000,18 +2051,13 @@ const CAT_KW = {
   admin: ['email','invoice','accounts','tax','vat','receipt','bookkeep'],
 };
 
-const CAT_BLOCK = {
-  liquidbiz:'mainwork_am', privatelabel:'parking',
-  life:'gym', admin:'mainwork_am',
-};
-
 const CAT_LABEL = {
   liquidbiz:'Today\'s Work', privatelabel:'Parking Lot',
   life:'Life', admin:'Admin',
 };
 
 // ── STATE ──
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 const STORAGE_KEY = 'dailyOS';
 
 // Map old (pre-v3) block ids to the new mainwork_am / mainwork_pm halves.
@@ -2043,7 +2089,7 @@ function load() {
 }
 
 function def() {
-  return { _v: DATA_VERSION, done:{}, weekly:[], custom:{}, events:[], streak:[], daysOff:[], recurring:[] };
+  return { _v: DATA_VERSION, done:{}, weekly:[], custom:{}, events:[], streak:[], daysOff:[], recurring: workSeedTasks(), order:{}, skips:{}, carryDismissed:{} };
 }
 
 function migrateState(s) {
@@ -2080,15 +2126,72 @@ function migrateState(s) {
     }
     s._v = 3;
   }
+  if (s._v < 4) {
+    // v4: Simple Day. Fold every day's block-keyed custom arrays into one flat
+    // list (block-time order), convert taskMoves overrides into per-day skips,
+    // drop recurring `block` fields, and re-home the old TEMPLATE's daily work
+    // tasks as plain weekday recurring tasks. Idempotent: gated on _v, so it
+    // runs once per payload on BOTH the startup and adoptState (sync) paths.
+    s.custom = s.custom || {};
+    s.order = s.order || {};
+    s.skips = s.skips || {};
+    s.carryDismissed = s.carryDismissed || {};
+    const FOLD_ORDER = ['mainwork_am', 'gym', 'lunch', 'mainwork_pm', 'flex', 'evening', 'weekend'];
+    for (const day of Object.keys(s.custom)) {
+      const dayMap = s.custom[day];
+      if (!dayMap || typeof dayMap !== 'object' || Array.isArray(dayMap)) continue;
+      const list = Array.isArray(dayMap.list) ? dayMap.list : [];
+      const rest = Object.keys(dayMap).filter(k => k !== 'list' && k !== 'parking' && !FOLD_ORDER.includes(k));
+      for (const bid of [...FOLD_ORDER, ...rest]) {
+        if (Array.isArray(dayMap[bid])) list.push(...dayMap[bid]);
+      }
+      const next = { list };
+      if (Array.isArray(dayMap.parking)) next.parking = dayMap.parking;
+      s.custom[day] = next;
+    }
+    // taskMoves → skips. Every override (block id or '__moved__' sentinel)
+    // meant "hide the template/recurring original for this day" — the visible
+    // copy already lives in the custom arrays folded above.
+    for (const [day, moves] of Object.entries(s.taskMoves || {})) {
+      if (!moves || typeof moves !== 'object') continue;
+      for (const tid of Object.keys(moves)) {
+        if (!s.skips[day]) s.skips[day] = {};
+        s.skips[day][tid] = true;
+      }
+    }
+    delete s.taskMoves;
+    // Recurrence is dayOfWeek only now.
+    if (Array.isArray(s.recurring)) {
+      for (const r of s.recurring) { if (r) delete r.block; }
+    } else {
+      s.recurring = [];
+    }
+    // Old TEMPLATE work tasks → weekday recurring seeds.
+    for (const seed of workSeedTasks()) {
+      if (!s.recurring.some(r => r && r.id === seed.id)) s.recurring.push(seed);
+    }
+    // Carry done-state over from the old template task ids so history (and
+    // anything ticked today on an old client) still reads as done.
+    for (const [day, dmap] of Object.entries(s.done || {})) {
+      if (!dmap) continue;
+      const dow = new Date(day + 'T00:00:00').getDay();
+      if (dow < 1 || dow > 5) continue;
+      if (dmap['nn_parcels']) dmap['rec_work_parcels_' + dow] = true;
+      if (dmap['nn_list']) dmap['rec_work_list_' + dow] = true;
+    }
+    s._v = 4;
+  }
   return s;
 }
 
 let S = load();
 if (!S.daysOff) S.daysOff = [];
 if (!S.recurring) S.recurring = [];
-if (!S.taskMoves) S.taskMoves = {};
+if (!S.order) S.order = {};
+if (!S.skips) S.skips = {};
+if (!S.carryDismissed) S.carryDismissed = {};
 // pinnedCountdowns: [{ eventId, pinnedAt (YYYY-MM-DD) }] — events shown as countdown hero cards
-// recurring: [{ id, text, cat, dur, dayOfWeek (0=Sun,6=Sat), block (for weekdays), notes }]
+// recurring: [{ id, text, cat, dur, dayOfWeek (0=Sun,6=Sat), notes }]
 // Gym days — configurable, stored in state
 if (!S.gymDays) S.gymDays = [1, 2, 4]; // default Mon, Tue, Thu
 syncGymDays();
@@ -2118,7 +2221,7 @@ function syncGymDays() {
   // Remove all gym recurring tasks, re-create from S.gymDays
   S.recurring = S.recurring.filter(r => !r.id?.startsWith('rec_gym_'));
   for (const dow of S.gymDays) {
-    S.recurring.push({ id: 'rec_gym_' + dow, text: 'Gym', cat: 'life', dur: 60, dayOfWeek: dow, block: 'gym' });
+    S.recurring.push({ id: 'rec_gym_' + dow, text: 'Gym', cat: 'life', dur: 60, dayOfWeek: dow });
   }
 }
 
@@ -2151,9 +2254,6 @@ function toggleGymDay(dow) {
 }
 let viewDay = today();
 let viewWeekOffset = 0;
-let showPastBlocks = false; // collapsed by default
-let openBlocks = new Set(); // tracks manually opened blocks
-let _lastAddedBlock = null; // track last added block for highlight
 let _lastAddedTaskId = null; // track last added task for highlight
 
 function save() {
@@ -2586,43 +2686,31 @@ function isWeekend(dayStr) {
 
 function isDayOff(dayStr) { return S.daysOff.includes(dayStr); }
 
-const EVENING_START = 17 * 60; // 17:00
-
-function isEveningMode(day) {
-  if (isWeekend(day)) return false;
-  if (day !== today()) return false;
-  return getNow() >= EVENING_START;
-}
-
-function eveningTasks(day) {
-  return ((S.custom[day] || {})['evening']) || [];
-}
-
-function getOutstandingPastTasks(day) {
-  if (day !== today()) return [];
-  const tmpl = getTemplateForDay(day);
-  const evIds = new Set(eveningTasks(day).map(t => t.id));
+// ── CARRY-OVER ──
+// Any custom task left unticked on yesterday's (or the day before's) list
+// surfaces at the top of today with a ↩ YESTERDAY chip. Same task, not a copy:
+// ticking it marks it done for its home day. Recurring tasks never carry (they
+// recur anyway); Parking Lot never carries. A task follows for at most 2 days.
+function getCarryTasks() {
+  if (viewDay !== today()) return [];
   const out = [];
-  for (const b of tmpl) {
-    if (b.isBreak) continue;
-    if (blockStatus(b) !== 'past') continue;
-    const { recurring, weekly, custom } = blockTasks(b.id, day);
-    const meta = { blockTime: b.time, blockId: b.id, blockCat: b.cat };
-    for (const t of recurring) {
-      if (isDone(t.id, day) || evIds.has(t.id)) continue;
-      const isUserRecur = typeof t.id === 'string' && t.id.startsWith('rec');
-      out.push({ ...t, ...meta, _type: isUserRecur ? 'rec' : 'r' });
-    }
-    for (const t of weekly) {
-      if (isDone(t.id, day) || evIds.has(t.id)) continue;
-      out.push({ ...t, ...meta, _type: 'w' });
-    }
-    for (const t of custom) {
-      if (isDone(t.id, day) || evIds.has(t.id)) continue;
-      out.push({ ...t, ...meta, _type: 'c' });
+  for (let back = 2; back >= 1; back--) {
+    const d = new Date();
+    d.setDate(d.getDate() - back);
+    const dk = toDateStr(d);
+    const dismissed = (S.carryDismissed || {})[dk] || {};
+    for (const t of ((S.custom[dk] || {}).list) || []) {
+      if (isDone(t.id, dk) || dismissed[t.id]) continue;
+      out.push({ ...t, _type: 'c', _home: dk });
     }
   }
   return out;
+}
+
+function dismissCarry(homeDay, tid) {
+  if (!S.carryDismissed[homeDay]) S.carryDismissed[homeDay] = {};
+  S.carryDismissed[homeDay][tid] = true;
+  save(); render();
 }
 
 function toggleDayOff(dayStr) {
@@ -2635,27 +2723,6 @@ function toggleDayOff(dayStr) {
   save(); render();
 }
 
-function getTemplateForDay(dayStr) {
-  if (isWeekend(dayStr)) return [];
-  const dow = new Date(dayStr + 'T00:00:00').getDay();
-  const isGymDay = S.gymDays.includes(dow);
-  return TEMPLATE.map(b => {
-    if (b.id !== 'gym') return b;
-    if (isGymDay) return b;
-    // Non-gym day: usable overflow block
-    return { ...b, title: 'Break / Overflow', sub: 'No gym. Use for tasks, errands, or rest.', isBreak: false, tasks: [], cat: 'admin' };
-  });
-}
-
-function blockStatus(b) {
-  if (viewDay !== today()) return 'future';
-  const now = getNow();
-  const s = timeToMin(b.time), e = timeToMin(b.end);
-  if (now >= e) return 'past';
-  if (now >= s) return 'now';
-  return 'future';
-}
-
 function detectCat(text) {
   const l = text.toLowerCase();
   for (const [cat, kws] of Object.entries(CAT_KW)) {
@@ -2664,112 +2731,39 @@ function detectCat(text) {
   return null;
 }
 
-function bestBlock(cat) { return CAT_BLOCK[cat] || 'flex'; }
-
-function nextWeekday(fromDate) {
-  const d = new Date(fromDate);
-  d.setDate(d.getDate() + 1);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toLocalDate();
-}
-
-// ── CAPACITY-AWARE SCHEDULING ──
-function getBlockCapacity(blockId, day) {
-  const b = TEMPLATE.find(x => x.id === blockId);
-  if (!b) return { total: 0, used: 0, free: 0 };
-  const total = b.dur;
-  const { recurring, weekly, custom } = blockTasks(blockId, day);
-  let used = recurring.reduce((s, t) => s + (t.dur || 15), 0); // recurring ~15min each
-  used += weekly.reduce((s, t) => s + (t.dur || 30), 0);
-  used += custom.reduce((s, t) => s + (t.dur || 30), 0);
-  return { total, used, free: Math.max(0, total - used) };
-}
-
-function smartBlock(cat, day, dur) {
-  // Parking-lot categories (private label etc) → parking lot, never the main work zone.
-  if (cat === 'privatelabel') return 'parking';
-  // Life things land in the gym/break slot.
-  if (cat === 'life') return 'gym';
-  // Default: today's work. Route to PM half once we're past 13:30 so the just-added
-  // task lands somewhere visually "current"; otherwise AM half.
-  if (day === today() && getNow() >= timeToMin('13:30')) return 'mainwork_pm';
-  return 'mainwork_am';
-}
-
-function bestDay(cat, when) {
-  if (when === 'today') return viewDay;
-  if (when === 'tomorrow') return literalTomorrow();
-  if (when === 'week') {
-    const mon = getMon(new Date());
-    const wk = getWeek(mon).map(d=>d.toLocalDate()).filter(d => !isWeekend(d));
-    const todayIdx = wk.indexOf(today());
-    return wk[Math.min(todayIdx + 1, wk.length - 1)] || today();
-  }
-
-  if (viewDay !== today()) return viewDay;
-  if (isWeekend(today())) return nextWeekday(new Date());
-
-  const blk = TEMPLATE.find(b => b.id === bestBlock(cat));
-  if (blk) {
-    const st = blockStatus(blk);
-    if (st !== 'past') return today();
-  }
-  return nextWeekday(new Date());
-}
-
-// ── GET TASKS FOR BLOCK+DAY ──
-function blockTasks(blockId, day) {
-  const b = TEMPLATE.find(x=>x.id===blockId);
-  // Filter out template tasks that were moved to another block for this day
-  const dayMoves = (S.taskMoves || {})[day] || {};
-  const recurring = [...(b.tasks||[])].filter(t => !dayMoves[t.id] || dayMoves[t.id] === blockId);
-
-  // Add user-created recurring tasks for this day of week + block
-  // Honour taskMoves overrides so a per-day move/skip applies to user-recurring too
+// ── THE DAY'S FLAT LIST ──
+// Recurring (this day of week, minus per-day skips) + weekly tasks assigned to
+// the day + the day's custom list, in that natural order — then S.order[day]
+// (manual drag order) wins where it has an opinion; unlisted ids keep their
+// natural position at the end.
+function listTasks(day) {
   const dow = new Date(day + 'T00:00:00').getDay();
-  const recur = S.recurring.filter(r =>
-    r.dayOfWeek === dow && r.block === blockId &&
-    (!dayMoves[r.id] || dayMoves[r.id] === blockId)
-  );
-  recurring.push(...recur);
-
-  const weekly = S.weekly.filter(w => {
-    if (w.day !== day) return false;
-    const tb = bestBlock(w.cat);
-    return tb === blockId;
-  });
-
-  let flexExtra = [];
-  if (blockId === 'flex') {
-    flexExtra = S.weekly.filter(w => {
-      if (w.day !== day) return false;
-      const tb = bestBlock(w.cat);
-      return !TEMPLATE.find(x=>x.id===tb) || tb === 'flex';
-    }).filter(f => !weekly.find(w=>w.id===f.id));
+  const skips = (S.skips || {})[day] || {};
+  const all = [
+    ...S.recurring.filter(r => r.dayOfWeek === dow && !skips[r.id]).map(t => ({ ...t, _type: 'rec' })),
+    ...S.weekly.filter(w => w.day === day).map(t => ({ ...t, _type: 'w' })),
+    ...(((S.custom[day]) || {}).list || []).map(t => ({ ...t, _type: 'c' })),
+  ];
+  const order = (S.order || {})[day];
+  if (order && order.length) {
+    const pos = new Map(order.map((id, i) => [id, i]));
+    return all
+      .map((t, i) => ({ t, k: pos.has(t.id) ? pos.get(t.id) : order.length + i }))
+      .sort((a, b) => a.k - b.k)
+      .map(x => x.t);
   }
-
-  let custom = ((S.custom[day]||{})[blockId]) || [];
-
-  // Rescue orphaned custom tasks from non-existent blocks into flex
-  if (blockId === 'flex') {
-    const dayCustom = S.custom[day] || {};
-    for (const [bid, tasks] of Object.entries(dayCustom)) {
-      if (bid === 'flex' || bid === 'weekend') continue;
-      if (!TEMPLATE.find(x => x.id === bid)) {
-        custom = [...custom, ...tasks];
-      }
-    }
-  }
-
-  return { recurring, weekly: [...weekly, ...flexExtra], custom };
+  return all;
 }
 
 function isDone(tid, day) { return !!(S.done[day]||{})[tid]; }
 
-function toggle(tid) {
-  if (!S.done[viewDay]) S.done[viewDay] = {};
-  S.done[viewDay][tid] = !S.done[viewDay][tid];
-  const nowDone = S.done[viewDay][tid];
+function toggle(tid, day) {
+  // `day` defaults to the day being viewed; carry-over rows pass their home
+  // day so ticking a carried task marks it done where it actually lives.
+  const dk = day || viewDay;
+  if (!S.done[dk]) S.done[dk] = {};
+  S.done[dk][tid] = !S.done[dk][tid];
+  const nowDone = S.done[dk][tid];
   checkStreak();
   save(); render();
   if (nowDone) {
@@ -2778,7 +2772,7 @@ function toggle(tid) {
       const el = document.querySelector('.tck.done[onclick*="' + tid + '"]');
       if (el) {
         el.classList.add('just-done');
-        const taskRow = el.closest('.task') || el.closest('.bk-hd');
+        const taskRow = el.closest('.task');
         if (taskRow) taskRow.classList.add('just-completed');
         setTimeout(() => {
           el.classList.remove('just-done');
@@ -2789,16 +2783,6 @@ function toggle(tid) {
       const chip = document.querySelector('.nn-chip[onclick*="' + tid + '"]');
       if (chip) { chip.classList.add('just-done'); setTimeout(() => chip.classList.remove('just-done'), 300); }
     }, 20);
-    // Block complete celebration
-    setTimeout(() => {
-      document.querySelectorAll('.block').forEach(block => {
-        const tasks = block.querySelectorAll('.tck');
-        if (tasks.length > 0 && [...tasks].every(t => t.classList.contains('done'))) {
-          block.classList.add('block-complete');
-          setTimeout(() => block.classList.remove('block-complete'), 1200);
-        }
-      });
-    }, 50);
     // All non-negotiables complete banner
     const nnD = S.done[viewDay] || {};
     if (NN.every(n => nnD[n.link])) {
@@ -2817,43 +2801,32 @@ function rmCustom(bid, tid) {
   save(); render();
 }
 
-function moveCustomTask(bid, tid, el) {
-  // Find the task
-  const c = (S.custom[viewDay]||{})[bid];
-  if (!c) return;
-  const task = c.find(t => t.id === tid);
-  if (!task) return;
-
-  // Remove existing picker
+// ── MOVE-TO POPOVER ──
+// ⇄ on every task row opens: Tomorrow · Pick a date… · To Parking Lot
+// (from the Parking Lot: To Today).
+function closeMoveMenu() {
   const existing = document.getElementById('task-move-picker');
   if (existing) existing.remove();
+}
 
+function moveMenu(type, tid, zone, homeDay, el) {
+  closeMoveMenu();
   const picker = document.createElement('div');
   picker.id = 'task-move-picker';
-  picker.style.cssText = 'position:fixed;z-index:999;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5);width:200px;';
+  picker.className = 'sd-menu';
   const rect = el.getBoundingClientRect();
   picker.style.top = (rect.bottom + 4) + 'px';
   picker.style.right = (window.innerWidth - rect.right) + 'px';
 
-  // Build 7 days from today + next week
-  const days = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    days.push(d);
-  }
-
-  let htm = `<div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);padding:2px 8px 6px;text-transform:uppercase;">Move to</div>`;
-  days.forEach(d => {
-    const dk = d.toLocalDate();
-    const isCurrent = dk === viewDay;
-    const label = dk === today() ? 'Today' : d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
-    htm += `<button style="display:block;width:100%;padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:11px;border:none;background:${isCurrent?'var(--accent-bg)':'none'};color:${isCurrent?'var(--accent)':'var(--text2)'};cursor:pointer;text-align:left;border-radius:5px;transition:background .1s;"
-      onmouseenter="if(!${isCurrent})this.style.background='var(--s3)'"
-      onmouseleave="if(!${isCurrent})this.style.background='none'"
-      onclick="execMoveCustom('${bid}','${tid}','${dk}')">${label}</button>`;
-  });
-
+  const args = `'${type}','${tid}','${zone}','${homeDay}'`;
+  let htm = `<div class="sd-menu-item" onclick="execMove(${args},'tomorrow')">Tomorrow</div>`;
+  htm += `<div class="sd-menu-item" onclick="event.stopPropagation();this.style.display='none';const d=document.getElementById('sd-move-date');d.style.display='block';d.focus();">Pick a date&hellip;</div>`;
+  htm += `<input id="sd-move-date" class="ae-date" type="date" style="display:none;margin:4px;"
+    onclick="event.stopPropagation()"
+    onchange="if(this.value)execMove(${args},'date:'+this.value)">`;
+  htm += zone === 'parking'
+    ? `<div class="sd-menu-item" onclick="execMove(${args},'today')">To Today</div>`
+    : `<div class="sd-menu-item" onclick="execMove(${args},'parking')">To Parking Lot</div>`;
   picker.innerHTML = htm;
   document.body.appendChild(picker);
 
@@ -2865,130 +2838,56 @@ function moveCustomTask(bid, tid, el) {
   }, 10);
 }
 
-function execMoveCustom(fromBid, tid, toDay) {
-  // Remove from current day/block
-  const c = (S.custom[viewDay]||{})[fromBid];
-  if (!c) return;
-  const idx = c.findIndex(t => t.id === tid);
-  if (idx === -1) return;
-  const task = c.splice(idx, 1)[0];
+function execMove(type, tid, zone, homeDay, target) {
+  let toDay, toZone;
+  if (target === 'tomorrow') { toDay = literalTomorrow(); toZone = 'list'; }
+  else if (target === 'today') { toDay = today(); toZone = 'list'; }
+  else if (target === 'parking') { toDay = viewDay; toZone = 'parking'; }
+  else if (target.startsWith('date:')) { toDay = target.slice(5); toZone = 'list'; }
+  else return;
 
-  // Determine target block
-  const toWeekend = isWeekend(toDay);
-  const targetBid = toWeekend ? 'weekend' : smartBlock(task.cat || 'life', toDay, task.dur || 30);
-
-  // Add to new day/block
   if (!S.custom[toDay]) S.custom[toDay] = {};
-  if (!S.custom[toDay][targetBid]) S.custom[toDay][targetBid] = [];
-  S.custom[toDay][targetBid].push(task);
+  if (!S.custom[toDay][toZone]) S.custom[toDay][toZone] = [];
 
-  save();
-
-  // Close picker
-  const picker = document.getElementById('task-move-picker');
-  if (picker) picker.remove();
-
-  const dayLbl = toDay === today() ? 'today' :
-    toDay === literalTomorrow() ? 'tomorrow' :
-    new Date(toDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
-  showPa(`Moved "${task.text}" to ${dayLbl}.`);
-
-  // Stay on current day, just re-render to remove the moved task
-  render();
-}
-
-// Generic mover for any outstanding task type (c/r/w/rec) — opens the same picker
-function moveTaskToDate(type, fromBid, tid, el) {
-  const existing = document.getElementById('task-move-picker');
-  if (existing) existing.remove();
-
-  const picker = document.createElement('div');
-  picker.id = 'task-move-picker';
-  picker.style.cssText = 'position:fixed;z-index:999;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5);width:200px;';
-  const rect = el.getBoundingClientRect();
-  picker.style.top = (rect.bottom + 4) + 'px';
-  picker.style.right = (window.innerWidth - rect.right) + 'px';
-
-  const days = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    days.push(d);
-  }
-
-  let htm = `<div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);padding:2px 8px 6px;text-transform:uppercase;">Move to</div>`;
-  days.forEach(d => {
-    const dk = d.toLocalDate();
-    const isCurrent = dk === viewDay;
-    const label = dk === today() ? 'Today' : d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
-    htm += `<button style="display:block;width:100%;padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:11px;border:none;background:${isCurrent?'var(--accent-bg)':'none'};color:${isCurrent?'var(--accent)':'var(--text2)'};cursor:pointer;text-align:left;border-radius:5px;transition:background .1s;"
-      onmouseenter="if(!${isCurrent})this.style.background='var(--s3)'"
-      onmouseleave="if(!${isCurrent})this.style.background='none'"
-      onclick="execMoveTaskToDate('${type}','${fromBid}','${tid}','${dk}')">${label}</button>`;
-  });
-
-  picker.innerHTML = htm;
-  document.body.appendChild(picker);
-
-  setTimeout(() => {
-    const close = (e) => {
-      if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', close); }
-    };
-    document.addEventListener('click', close);
-  }, 10);
-}
-
-function execMoveTaskToDate(type, fromBid, tid, toDay) {
-  let movingTask = null;
   let label = '';
-
   if (type === 'c') {
-    const c = (S.custom[viewDay] || {})[fromBid];
-    if (!c) return;
-    const idx = c.findIndex(t => t.id === tid);
+    const arr = (S.custom[homeDay] || {})[zone];
+    if (!arr) return;
+    const idx = arr.findIndex(t => t.id === tid);
     if (idx === -1) return;
-    movingTask = c.splice(idx, 1)[0];
-    label = movingTask.text;
-  } else if (type === 'r') {
-    const srcBlock = TEMPLATE.find(b => b.id === fromBid);
-    const srcTask = srcBlock?.tasks?.find(t => t.id === tid);
-    if (!srcTask) return;
-    if (!S.taskMoves) S.taskMoves = {};
-    if (!S.taskMoves[viewDay]) S.taskMoves[viewDay] = {};
-    S.taskMoves[viewDay][tid] = '__moved__'; // sentinel — hidden from every block today
-    movingTask = { id: 'ct'+uid(), text: srcTask.text, dur: srcTask.dur || 15, cat: srcTask.cat || 'admin', notes: srcTask.notes };
-    label = srcTask.text;
+    const task = arr.splice(idx, 1)[0];
+    S.custom[toDay][toZone].push(task);
+    if (S.order[homeDay]) S.order[homeDay] = S.order[homeDay].filter(id => id !== tid);
+    // Moving clears any carry-over state.
+    if ((S.carryDismissed[homeDay] || {})[tid]) delete S.carryDismissed[homeDay][tid];
+    label = task.text;
+  } else if (type === 'rec') {
+    // Recurring instance: hide it for this day, drop a one-off copy on the
+    // target. The recurrence itself is untouched.
+    const r = S.recurring.find(x => x.id === tid);
+    if (!r) return;
+    if (!S.skips[viewDay]) S.skips[viewDay] = {};
+    S.skips[viewDay][tid] = true;
+    S.custom[toDay][toZone].push({ id: 'ct'+uid(), text: r.text, dur: r.dur, cat: r.cat, notes: r.notes, done: false });
+    label = r.text;
   } else if (type === 'w') {
     const w = S.weekly.find(x => x.id === tid);
     if (!w) return;
-    w.day = toDay;
-    save();
-    const picker = document.getElementById('task-move-picker');
-    if (picker) picker.remove();
-    showPa(`Moved "${w.text}" to ${labelForDay(toDay)}.`);
-    render();
+    if (toZone === 'parking') {
+      // Weekly → parking: becomes a plain parked custom task.
+      S.weekly = S.weekly.filter(x => x.id !== tid);
+      S.custom[toDay][toZone].push({ id: w.id, text: w.text, dur: w.dur, cat: w.cat, notes: w.notes, done: false });
+    } else {
+      w.day = toDay;
+    }
+    label = w.text;
+  } else {
     return;
-  } else if (type === 'rec') {
-    const r = S.recurring.find(x => x.id === tid);
-    if (!r) return;
-    if (!S.taskMoves) S.taskMoves = {};
-    if (!S.taskMoves[viewDay]) S.taskMoves[viewDay] = {};
-    S.taskMoves[viewDay][tid] = '__moved__'; // skip today's recurring instance
-    movingTask = { id: 'ct'+uid(), text: r.text, dur: r.dur, cat: r.cat, notes: r.notes };
-    label = r.text;
   }
 
-  if (!movingTask) return;
-
-  const targetBid = isWeekend(toDay) ? 'weekend' : smartBlock(movingTask.cat || 'life', toDay, movingTask.dur || 30);
-  if (!S.custom[toDay]) S.custom[toDay] = {};
-  if (!S.custom[toDay][targetBid]) S.custom[toDay][targetBid] = [];
-  S.custom[toDay][targetBid].push(movingTask);
-
   save();
-  const picker = document.getElementById('task-move-picker');
-  if (picker) picker.remove();
-  showPa(`Moved "${label}" to ${labelForDay(toDay)}.`);
+  closeMoveMenu();
+  showPa(`Moved "${label}" to ${toZone === 'parking' ? 'the Parking Lot' : labelForDay(toDay)}.`);
   render();
 }
 
@@ -3066,15 +2965,6 @@ function parseDayName(text) {
   return null;
 }
 
-// Find which block a time falls into
-function findBlockAtTime(timeMin) {
-  for (const b of TEMPLATE) {
-    const s = timeToMin(b.time), e = timeToMin(b.end);
-    if (timeMin >= s && timeMin < e) return b;
-  }
-  return null;
-}
-
 function paAdd() {
   const inp = document.getElementById('qaInp');
   const text = inp.value.trim();
@@ -3097,9 +2987,7 @@ function paAdd() {
     const prefix = everyMatch[1].slice(0,3).toLowerCase();
     const dow = dayMap[prefix];
     const cleanText = text.replace(everyMatch[0], '').replace(/\s{2,}/g,' ').trim();
-    const isWeekdayDow = dow >= 1 && dow <= 5;
-    const block = isWeekdayDow ? smartBlock(cat, today(), dur) : null;
-    S.recurring.push({ id: 'rec'+uid(), text: cleanText || text, cat, dur, dayOfWeek: dow, block });
+    S.recurring.push({ id: 'rec'+uid(), text: cleanText || text, cat, dur, dayOfWeek: dow });
     save();
     const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     showPa(`Recurring task added: "${cleanText||text}" every ${dayNames[dow]}. ${dur}min.`);
@@ -3131,7 +3019,7 @@ function paAdd() {
 
   // ── "This week" → add as a WEEKLY TASK (sidebar), not a day-specific custom task ──
   if (when === 'week' && !textDay && !parsedTime) {
-    // Find the lightest weekday for this category
+    // Find the lightest remaining weekday (fewest open tasks)
     const mon = getMon(new Date());
     const wkDays = getWeek(mon).map(d=>d.toLocalDate()).filter(d => !isWeekend(d));
     let bestWkDay = wkDays[0];
@@ -3139,9 +3027,8 @@ function paAdd() {
     for (const wd of wkDays) {
       // Skip past days
       if (wd < today()) continue;
-      const blk = smartBlock(cat, wd, dur);
-      const cap = getBlockCapacity(blk, wd);
-      if (cap.used < minLoad) { minLoad = cap.used; bestWkDay = wd; }
+      const load = listTasks(wd).filter(t => !isDone(t.id, wd)).length;
+      if (load < minLoad) { minLoad = load; bestWkDay = wd; }
     }
     const wkId = uid();
     S.weekly.push({ id: wkId, text: cleanText, cat, dur, day: bestWkDay, done: false });
@@ -3153,81 +3040,28 @@ function paAdd() {
     return;
   }
 
-  // Check for "today"/"tomorrow" in text first, then day names, then auto
+  // Check for "today"/"tomorrow" in text first, then day names, then the
+  // When selector. No block routing any more \u2014 everything lands on the day's
+  // flat list.
   let day = textDay;
-  if (!day) day = bestDay(cat, when);
-
-
-  // For weekends: everything goes into a flat custom list keyed by time
-  if (isWeekend(day)) {
-    const timeKey = parsedTime ? `${String(parsedTime.hour).padStart(2,'0')}:${String(parsedTime.min).padStart(2,'0')}` : null;
-    if (!S.custom[day]) S.custom[day] = {};
-    if (!S.custom[day]['weekend']) S.custom[day]['weekend'] = [];
-    const taskId = 'ct'+uid();
-    S.custom[day]['weekend'].push({
-      id: taskId, text: cleanText, done:false, cat, dur,
-      time: timeKey
-    });
-    save();
-    const dayLbl = new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'});
-    showPa(`Added to ${dayLbl}${timeKey ? ' at ' + timeKey : ''}. ${dur}min.`);
-    inp.value = '';
-    // Navigate to that day
-    viewDay = day;
-    render();
-    return;
-  }
-
-  // For weekdays with a specific time: find which block it falls in
-  let blk;
-  let paMessage;
-
-  if (parsedTime) {
-    const hitBlock = findBlockAtTime(parsedTime.totalMin);
-    if (hitBlock && !hitBlock.isBreak) {
-      blk = hitBlock.id;
-      paMessage = `Slotted into ${hitBlock.title} at ${String(parsedTime.hour).padStart(2,'0')}:${String(parsedTime.min).padStart(2,'0')}`;
-    } else if (parsedTime.totalMin >= EVENING_START && day === today()) {
-      blk = 'evening';
-      paMessage = `Added to Evening`;
-    } else {
-      blk = 'flex';
-      paMessage = `No block at that time, added to Flex Block`;
-    }
-  } else if (day === today() && isEveningMode(today())) {
-    blk = 'evening';
-    paMessage = `Added to Evening`;
-  } else {
-    // Capacity-aware scheduling
-    blk = smartBlock(cat, day, dur);
-    const blkDef = TEMPLATE.find(b=>b.id===blk);
-    const cap = getBlockCapacity(blk, day);
-    const freeAfter = cap.free - dur;
-    if (freeAfter < 0) {
-      paMessage = `\u26a0\ufe0f OVERFLOW: ${blkDef?blkDef.title:'Flex'} is ${Math.abs(freeAfter)}min over capacity!`;
-    } else {
-      paMessage = `Scheduled into ${blkDef?blkDef.title:'Flex'} (${freeAfter}min free after)`;
-    }
+  if (!day) {
+    if (when === 'tomorrow') day = literalTomorrow();
+    else day = viewDay; // 'today' and 'auto' both mean the day being viewed
   }
 
   if (!S.custom[day]) S.custom[day] = {};
-  if (!S.custom[day][blk]) S.custom[day][blk] = [];
+  if (!S.custom[day].list) S.custom[day].list = [];
   const taskId = 'ct'+uid();
-  S.custom[day][blk].push({
-    id: taskId, text: cleanText, done:false, cat, dur,
-    time: parsedTime ? `${String(parsedTime.hour).padStart(2,'0')}:${String(parsedTime.min).padStart(2,'0')}` : null
-  });
+  S.custom[day].list.push({ id: taskId, text: cleanText, done:false, cat, dur });
 
   save();
 
   const dayLbl = day===today() ? 'today' :
     day===literalTomorrow() ? 'tomorrow' :
     new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
-  const blkName = blk === 'evening' ? 'Evening' : (TEMPLATE.find(b=>b.id===blk)?.title || 'Flex');
-  showPa(`Added to ${blkName} on ${dayLbl} (${dur}min). Viewing now.`);
+  showPa(`Added to ${dayLbl} (${dur}min). Viewing now.`);
 
   // Track for highlight animation
-  _lastAddedBlock = blk;
   _lastAddedTaskId = taskId;
 
   inp.value = '';
@@ -3238,19 +3072,11 @@ function paAdd() {
   viewWeekOffset = Math.round((_tMon - _cMon) / 86400000 / 7);
   render();
 
-  // Auto-expand the block and scroll to it
+  // Scroll the day card into view, then clear the highlight tracker
   setTimeout(() => {
-    const body = document.getElementById('bd-' + blk);
-    const chev = document.getElementById('ch-' + blk);
-    if (body && !body.classList.contains('open')) {
-      body.classList.add('open');
-      if (chev) chev.classList.add('open');
-    }
-    // Scroll to block
-    const blockEl = document.querySelector(`[data-block="${blk}"]`);
-    if (blockEl) blockEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // Clear highlight trackers after animation
-    setTimeout(() => { _lastAddedBlock = null; _lastAddedTaskId = null; }, 1600);
+    const cardEl = document.querySelector('.sd-card[data-zone="list"]');
+    if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => { _lastAddedTaskId = null; }, 1600);
   }, 50);
 }
 
@@ -3304,11 +3130,6 @@ function editTask(type, bid, tid) {
   const existing = document.getElementById('task-edit-modal');
   if (existing) existing.remove();
 
-  // Build block options for custom tasks
-  const blockOpts = TEMPLATE.filter(b => !b.isBreak).map(b =>
-    `<option value="${b.id}" ${b.id===bid?'selected':''}>${b.title} (${b.time}-${b.end})</option>`
-  ).join('');
-
   const catOpts = Object.entries(CAT_LABEL).map(([k,v]) =>
     `<option value="${k}" ${k===task.cat?'selected':''}>${v}</option>`
   ).join('');
@@ -3327,7 +3148,6 @@ function editTask(type, bid, tid) {
           <input id="te-dur" class="qa-num" type="number" value="${task.dur||30}" min="5" max="480" step="5">
           <span style="font-size:10px;color:var(--muted);line-height:30px;">min</span>
         </div>
-        ${type==='c'?`<select id="te-block" class="qa-sel">${blockOpts}</select>`:''}
         ${type==='rec'?`<div style="display:flex;gap:6px;align-items:center;">
           <span style="font-size:11px;color:var(--muted);">Repeats every</span>
           <select id="te-dow" class="qa-sel" style="flex:1;">
@@ -3357,7 +3177,6 @@ function saveTaskEdit(type, bid, tid) {
   const newNotes = document.getElementById('te-notes').value.trim();
   const newCat = document.getElementById('te-cat').value;
   const newDur = parseInt(document.getElementById('te-dur').value) || 30;
-  const newBlock = type === 'c' ? document.getElementById('te-block').value : null;
 
   if (!newText) return;
 
@@ -3377,14 +3196,6 @@ function saveTaskEdit(type, bid, tid) {
       task.notes = newNotes || undefined;
       task.cat = newCat;
       task.dur = newDur;
-
-      // Move to different block if changed
-      if (newBlock && newBlock !== bid) {
-        const idx = c.findIndex(t => t.id === tid);
-        if (idx > -1) c.splice(idx, 1);
-        if (!S.custom[viewDay][newBlock]) S.custom[viewDay][newBlock] = [];
-        S.custom[viewDay][newBlock].push(task);
-      }
     }
   } else if (type === 'rec') {
     const task = S.recurring.find(r => r.id === tid);
@@ -3778,35 +3589,6 @@ function rmWk(id) {
   save(); render();
 }
 
-// ── FOCUS CARD HELPERS ──
-function getCurrentBlock() {
-  if (viewDay !== today() || isWeekend(today())) return null;
-  const now = getNow();
-  for (const b of TEMPLATE) {
-    const s = timeToMin(b.time), e = timeToMin(b.end);
-    if (now >= s && now < e) return b;
-  }
-  return null;
-}
-
-function getNextBlock() {
-  if (isWeekend(today())) return null;
-  const now = getNow();
-  for (const b of TEMPLATE) {
-    const s = timeToMin(b.time);
-    if (now < s) return b;
-  }
-  return null;
-}
-
-function formatCountdown(mins) {
-  if (mins <= 0) return 'ending now';
-  if (mins < 60) return `${mins}min left`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
-}
-
 // ── RENDER ──
 function render() {
   renderMain();
@@ -3857,7 +3639,7 @@ function renderMain() {
           const dk = d.toLocalDate();
           const isTd = dk===today();
           const isAct = dk===viewDay;
-          const hasTasks = S.weekly.some(w=>w.day===dk&&!w.done) || Object.keys(S.custom[dk]||{}).length>0 || getUpcomingEvents().some(e=>e.nextDate.toLocalDate()===dk);
+          const hasTasks = S.weekly.some(w=>w.day===dk&&!w.done) || Object.values(S.custom[dk]||{}).some(a=>Array.isArray(a)&&a.length>0) || getUpcomingEvents().some(e=>e.nextDate.toLocalDate()===dk);
           return `<button class="day-btn ${isAct?'active':''} ${hasTasks&&!isAct?'has-tasks':''}" onclick="switchDay('${dk}')">${isTd?'Today':dayNames[i]}</button>`;
         }).join('')}
         <button class="day-btn" onclick="changeWeek(1)" title="Next week" style="padding:5px 8px;">&#8594;</button>
@@ -3867,81 +3649,12 @@ function renderMain() {
   // ── PINNED COUNTDOWN HERO ──
   htm += renderCountdownHero();
 
-  // ── FOCUS CARD (today only, weekdays) ──
-  if (viewDay === today() && !isWeekend(viewDay)) {
-    const curBlock = getCurrentBlock();
-    if (curBlock && !curBlock.isBreak) {
-      const now = getNow();
-      const blockEnd = timeToMin(curBlock.end);
-      const blockStart = timeToMin(curBlock.time);
-      const minsLeft = blockEnd - now;
-      const elapsed = now - blockStart;
-      const totalDur = blockEnd - blockStart;
-      const pctElapsed = Math.round((elapsed / totalDur) * 100);
-
-      // Get next incomplete task in this block
-      const { recurring, weekly, custom } = blockTasks(curBlock.id, viewDay);
-      const allBlockTasks = [...recurring, ...weekly, ...custom];
-      const nextTask = allBlockTasks.find(t => !isDone(t.id, viewDay));
-      const focusText = nextTask ? nextTask.text : curBlock.sub;
-
-      htm += `
-        <div class="focus-card">
-          <div class="focus-label"><div class="focus-pulse"></div>FOCUS NOW</div>
-          <div class="focus-title">${curBlock.title}</div>
-          <div class="focus-sub">${focusText}</div>
-          <div class="focus-countdown">
-            <span>${formatCountdown(minsLeft)}</span>
-            <div class="focus-countdown-bar">
-              <div class="focus-countdown-fill" style="width:${pctElapsed}%"></div>
-            </div>
-            <span>${curBlock.end}</span>
-          </div>
-        </div>`;
-    } else if (curBlock && curBlock.isBreak) {
-      const next = getNextBlock();
-      if (next) {
-        htm += `
-          <div class="focus-card" style="border-left-color:var(--c-break);">
-            <div class="focus-label"><div class="focus-pulse" style="background:var(--c-break);"></div>ON BREAK</div>
-            <div class="focus-title">${curBlock.title}</div>
-            <div class="focus-sub">Next up: ${next.title} at ${next.time}</div>
-          </div>`;
-      }
-    } else if (isEveningMode(viewDay)) {
-      // Evening mode — workday's done
-      const out = getOutstandingPastTasks(viewDay);
-      const ev = eveningTasks(viewDay);
-      const evDone = ev.filter(t => isDone(t.id, viewDay)).length;
-      let sub;
-      if (out.length > 0) sub = `${out.length} task${out.length>1?'s':''} still outstanding from today.`;
-      else if (ev.length > 0 && evDone === ev.length) sub = "Workday clean. Evening list clean. Real rest.";
-      else if (ev.length > 0) sub = `${evDone}/${ev.length} done tonight.`;
-      else sub = "Workday wrapped. What's on tonight?";
-      htm += `
-        <div class="focus-card focus-evening">
-          <div class="focus-label"><div class="focus-pulse"></div>OFF THE CLOCK</div>
-          <div class="focus-title">Evening</div>
-          <div class="focus-sub">${sub}</div>
-        </div>`;
-    } else {
-      // Before 9am
-      const next = getNextBlock();
-      if (next) {
-        htm += `
-          <div class="focus-card" style="border-left-color:var(--muted);background:var(--s2);">
-            <div class="focus-label" style="color:var(--muted);"><div class="focus-pulse" style="background:var(--muted);"></div>NEXT UP</div>
-            <div class="focus-title">${next.title}</div>
-            <div class="focus-sub">Starts at ${next.time}</div>
-          </div>`;
-      }
-    }
-  } else if (!isWeekend(viewDay)) {
-    // ── DAY-HEADER HERO (other weekdays — planning ahead / looking back) ──
+  // ── DATE-CONTEXT CARD (any non-today day — planning ahead / looking back) ──
+  if (viewDay !== today()) {
     const vd = new Date(viewDay + 'T12:00:00');
     const wdName = vd.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
     const isPastDay = viewDay < today();
-    const dayTasks = getAllTasks(viewDay);
+    const dayTasks = listTasks(viewDay);
     const dDone = dayTasks.filter(t => isDone(t.id, viewDay)).length;
     const label = isPastDay ? 'LOOKING BACK' : 'PLANNING AHEAD';
     let sub;
@@ -3956,225 +3669,34 @@ function renderMain() {
       </div>`;
   }
 
-  // Events visible in sidebar — no banners needed
   const isWknd = isWeekend(viewDay);
 
-  // Short-day capacity banner + NN strip — only on weekdays
+  // Short-day pickup banner + NN strip — only on weekdays
   if (!isWknd) {
     htm += shortDayCapacityHtml(viewDay);
     htm += nnStripHtml(viewDay);
   }
 
-  // Progress numbers live in the sidebar stat pills (streak / done / non-negs /
-  // blocked) — the duplicated main-column bar was removed in the Focus-First pass
-  // to keep the top of the day calm. Template still needed below for blocks.
-  const tmpl = getTemplateForDay(viewDay);
-
-  // Blocks
   htm += '<div class="blocks">';
 
-  if (isWknd) {
-    // ── WEEKEND VIEW ──
-    const weekendTasks = ((S.custom[viewDay]||{})['weekend']) || [];
-    const weeklyForDay = S.weekly.filter(w => w.day === viewDay);
-    const dayEvents = getUpcomingEvents().filter(e => {
-      return e.nextDate.toLocalDate() === viewDay;
-    });
+  // ── THE DAY: one flat tick-list + parking lot ──
+  htm += renderDayCard(viewDay);
+  htm += renderParkingLot(viewDay);
 
-    const dow = new Date(viewDay + 'T00:00:00').getDay();
-    const recurForDay = S.recurring.filter(r => r.dayOfWeek === dow);
-    const allWeekendItems = [
-      ...dayEvents.map(e => ({ ...e, _type: 'event' })),
-      ...recurForDay.map(t => ({ ...t, _type: 'recurring' })),
-      ...weekendTasks.map(t => ({ ...t, _type: 'task' })),
-      ...weeklyForDay.map(t => ({ ...t, _type: 'weekly' })),
-    ].sort((a, b) => {
-      const tA = a.time ? timeToMin(a.time) : 9999;
-      const tB = b.time ? timeToMin(b.time) : 9999;
-      return tA - tB;
-    });
-
-    if (allWeekendItems.length === 0) {
-      htm += `<div style="padding:40px 0;text-align:center;">
-        <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px;">${isDayOff(viewDay)?'Day off. Enjoy.':'Weekend. No plans.'}</div>
-        <div style="font-size:13px;color:var(--muted);">Add something via your PA if you need to.</div>
-      </div>`;
-    } else {
-      allWeekendItems.forEach(item => {
-        if (item._type === 'event') {
-          const locStr = item.location ? ` &middot; ${item.location}` : '';
-          const notesStr = item.notes ? ` &middot; ${item.notes}` : '';
-          const accent = item.mufc ? '#DA291C' : item.holiday ? '#6ea8b8' : 'var(--accent)';
-          const subLabel = item.mufc ? 'Man Utd' : item.holiday ? 'Holiday' : 'Event';
-          htm += `<div class="block" style="border-left:3px solid ${accent};cursor:pointer;" onclick="editEvent('${item.id}')">
-            <div class="bk-hd">
-              <div class="bk-cat" style="background:${accent};"></div>
-              <div class="bk-time">${item.time || ''}</div>
-              <div class="bk-info">
-                <div class="bk-title">${item.text}</div>
-                <div class="bk-sub">${subLabel}${locStr}${notesStr}</div>
-              </div>
-            </div>
-          </div>`;
-        } else {
-          const done = isDone(item.id, viewDay);
-          const editType = item._type === 'weekly' ? 'w' : item._type === 'recurring' ? 'rec' : 'c';
-          const editBid = item._type === 'task' ? 'weekend' : '';
-          const notesHtml = item.notes ? `<div class="t-bullets" style="margin-top:4px;">${item.notes.split('\n').filter(l=>l.trim()).map(l=>`<div class="t-bullet">${l.trim()}</div>`).join('')}</div>` : '';
-          const repeatTag = item._type === 'recurring' ? '<span style="font-family:JetBrains Mono,monospace;font-size:9px;color:var(--accent);opacity:0.7;margin-left:6px;">REPEATS</span>' : '';
-          const canDrag = item._type === 'task' || item._type === 'weekly';
-          const canMove = item._type === 'task';
-          htm += `<div class="block" ${canDrag?`draggable="true" ondragstart="dragTask(event,'${editType}','weekend','${item.id}')"`:''}>
-            <div class="bk-hd" style="cursor:pointer;" onclick="editTask('${editType}','${editBid}','${item.id}')">
-              <div class="bk-cat cat-bg-${item.cat||'life'}"></div>
-              <div class="bk-time">${item.time || ''}</div>
-              <div class="bk-info">
-                <div class="bk-title" style="${done?'text-decoration:line-through;color:var(--muted);':''}">${item.text}${repeatTag}</div>
-                <div class="bk-sub">${item.dur||30}min${item._type==='weekly'?' / weekly':''}${item._type==='recurring'?' / every week':''}</div>
-                ${notesHtml}
-              </div>
-              <div class="tck ${done?'done':''}" onclick="event.stopPropagation();toggle('${item.id}')" style="flex-shrink:0;"></div>
-              ${canMove?`<span class="t-move" onclick="event.stopPropagation();moveCustomTask('weekend','${item.id}',this)" title="Move to another day" style="flex-shrink:0;">&#8644;</span>`:''}
-              ${item._type==='task'?`<span class="t-rm" onclick="event.stopPropagation();rmWeekendTask('${item.id}')" style="flex-shrink:0;">&times;</span>`:''}
-              ${item._type==='recurring'?`<span class="t-rm" onclick="event.stopPropagation();rmRecurring('${item.id}')" style="flex-shrink:0;">&times;</span>`:''}
-            </div>
-          </div>`;
-        }
-      });
+  // ── EOD NUDGE (today only) ──
+  if (viewDay === today()) {
+    const tasks = listTasks(viewDay);
+    const carries = getCarryTasks();
+    const open = tasks.filter(t => !isDone(t.id, viewDay)).length + carries.length;
+    if (tasks.length + carries.length > 0) {
+      htm += `<div class="sd-nudge">&#128172; ${open > 0
+        ? `${open} to go. Tick them off, then you're done for the day.`
+        : 'All done. Clear day, clear head.'}</div>`;
     }
-  } else {
-    // ── WEEKDAY VIEW ──
-    const curBlock = viewDay===today() ? tmpl.find(b=>blockStatus(b)==='now') : null;
-
-    // Separate past and non-past blocks (only for today)
-    const isToday = viewDay === today();
-    const pastBlocks = isToday ? tmpl.filter(b => blockStatus(b) === 'past') : [];
-    const nonPastBlocks = isToday ? tmpl.filter(b => blockStatus(b) !== 'past') : tmpl;
-
-    // ── COMPUTE DAY EVENTS (needed for both past and future blocks) ──
-    const dayEventsAll = getUpcomingEvents().filter(e => e.nextDate.toLocalDate() === viewDay);
-    const dayEvents = dayEventsAll.filter(e => e.time).sort((a,b) => timeToMin(a.time) - timeToMin(b.time));
-    const dayEventsNoTime = dayEventsAll.filter(e => !e.time);
-    const usedEventIds = new Set();
-
-    // ── EVENING MODE: Evening + Outstanding go on top ──
-    const inEveningMode = isEveningMode(viewDay);
-    const hasEveningTasks = eveningTasks(viewDay).length > 0;
-    if (inEveningMode) {
-      htm += renderEveningBlock(viewDay);
-      htm += renderOutstanding(getOutstandingPastTasks(viewDay));
-    }
-
-    // ── PAST BLOCKS SUMMARY (collapsed by default) ──
-    if (pastBlocks.length > 0) {
-      let pastDone = 0, pastTotal = 0;
-      for (const b of pastBlocks) {
-        if (b.isBreak) continue;
-        const { recurring, weekly, custom } = blockTasks(b.id, viewDay);
-        const all = [...recurring, ...weekly, ...custom];
-        pastTotal += all.length;
-        pastDone += all.filter(t => isDone(t.id, viewDay)).length;
-      }
-      const lastPast = pastBlocks[pastBlocks.length - 1];
-
-      htm += `<div class="past-summary" onclick="togglePast()">
-        <div class="past-summary-text">
-          <strong>${pastBlocks.filter(b=>!b.isBreak).length} blocks</strong> completed &mdash;
-          ${pastDone}/${pastTotal} tasks done (up to ${lastPast.end})
-        </div>
-        <div class="past-summary-toggle">${showPastBlocks ? 'HIDE' : 'SHOW'}</div>
-      </div>`;
-
-      // ── MISSED TASKS (incomplete from past blocks) ──
-      // Suppressed in evening mode — replaced by the Outstanding section above.
-      if (!showPastBlocks && !inEveningMode) {
-        let missedHtml = '';
-        for (const b of pastBlocks) {
-          if (b.isBreak) continue;
-          const { recurring, weekly, custom } = blockTasks(b.id, viewDay);
-          const all = [...recurring, ...weekly, ...custom];
-          const missed = all.filter(t => !isDone(t.id, viewDay));
-          for (const t of missed) {
-            const d = isDone(t.id, viewDay);
-            missedHtml += `
-              <div class="task" style="display:flex;align-items:center;gap:8px;">
-                <div class="tck ${d?'done':''}" onclick="toggle('${t.id}')"></div>
-                <div class="t-text" style="flex:1;font-size:13px;color:var(--text2);">${t.text}</div>
-                <span class="t-block-tag">${b.time}</span>
-              </div>`;
-          }
-        }
-        if (missedHtml) {
-          htm += `<div class="missed-tasks">
-            <div class="missed-hd">${pastTotal - pastDone} missed</div>
-            ${missedHtml}
-          </div>`;
-        }
-      }
-
-      if (showPastBlocks) {
-        let pastEvIdx = 0;
-        for (const b of pastBlocks) {
-          const bStart = timeToMin(b.time);
-          while (pastEvIdx < dayEvents.length && timeToMin(dayEvents[pastEvIdx].time) < bStart) {
-            htm += renderInlineEvent(dayEvents[pastEvIdx]);
-            usedEventIds.add(dayEvents[pastEvIdx].id);
-            pastEvIdx++;
-          }
-          htm += renderBlock(b, curBlock);
-        }
-        // Any events between last past block and first non-past block
-        const lastPastEnd = pastBlocks.length > 0 ? timeToMin(pastBlocks[pastBlocks.length-1].end) : 0;
-        const firstNonPastStart = nonPastBlocks.length > 0 ? timeToMin(nonPastBlocks[0].time) : 2400;
-        while (pastEvIdx < dayEvents.length && timeToMin(dayEvents[pastEvIdx].time) < firstNonPastStart) {
-          htm += renderInlineEvent(dayEvents[pastEvIdx]);
-          usedEventIds.add(dayEvents[pastEvIdx].id);
-          pastEvIdx++;
-        }
-      }
-    }
-
-    // ── CURRENT + FUTURE BLOCKS (with inline events) ──
-
-    // Events without a time show at top of day
-    for (const ev of dayEventsNoTime) {
-      htm += renderInlineEvent({ ...ev, time: '' });
-    }
-
-    // Merge blocks and timed events into one chronological list
-    let evIdx = 0;
-    for (const b of nonPastBlocks) {
-      const bStart = timeToMin(b.time);
-      // Insert any events that come before this block
-      while (evIdx < dayEvents.length && timeToMin(dayEvents[evIdx].time) < bStart) {
-        if (!usedEventIds.has(dayEvents[evIdx].id)) {
-          htm += renderInlineEvent(dayEvents[evIdx]);
-        }
-        evIdx++;
-      }
-      htm += renderBlock(b, curBlock);
-    }
-    // Any remaining events after all blocks
-    while (evIdx < dayEvents.length) {
-      if (!usedEventIds.has(dayEvents[evIdx].id)) {
-        htm += renderInlineEvent(dayEvents[evIdx]);
-      }
-      evIdx++;
-    }
-
-    // Past day with evening tasks — render Evening section at the end
-    if (!inEveningMode && hasEveningTasks) {
-      htm += renderEveningBlock(viewDay);
-    }
-
-    // Parking Lot — always rendered for weekdays, even if empty (template task seeds it)
-    htm += renderParkingLot(viewDay);
   }
+
   // Quick inline add
-  const eveningAdd = !isWeekend(viewDay) && isEveningMode(viewDay);
-  const qaPlaceholder = eveningAdd
-    ? 'Add to evening...'
-    : `Add a task to ${viewDay===today()?'today':new Date(viewDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})}...`;
+  const qaPlaceholder = `Add a task to ${viewDay===today()?'today':new Date(viewDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})}...`;
   htm += `<div class="quick-add" onclick="focusQuickAdd()">
     <span class="quick-add-icon">+</span>
     <input class="quick-add-inp" id="quickAddInp" type="text" placeholder="${qaPlaceholder}"
@@ -4184,105 +3706,82 @@ function renderMain() {
   htm += '</div>';
   el.innerHTML = htm;
 
-  // Update page title
-  const curBlockForTitle = (viewDay === today() && !isWeekend(viewDay)) ? tmpl.find(b => blockStatus(b) === 'now') : null;
-  document.title = curBlockForTitle ? `${curBlockForTitle.title} | Daily OS` : 'Daily OS';
+  document.title = 'Daily OS';
+}
 
-  // Scroll to current
-  if (viewDay===today() && !isWeekend(viewDay)) {
-    const now = document.querySelector('.block.is-now');
-    if (now) setTimeout(()=>now.scrollIntoView({behavior:'smooth',block:'center'}), 80);
+// ── DAY CARD (the new core) ──
+function renderDayCard(day) {
+  const isToday = day === today();
+  const tasks = listTasks(day);
+  const carries = isToday ? getCarryTasks() : [];
+  const doneCount = tasks.filter(t => isDone(t.id, day)).length;
+  const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
+  const title = isToday ? 'TODAY' : new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long' }).toUpperCase();
+  const dayEvents = getUpcomingEvents()
+    .filter(e => e.nextDate.toLocalDate() === day)
+    .sort((a, b) => (a.time ? timeToMin(a.time) : -1) - (b.time ? timeToMin(b.time) : -1));
+
+  let htm = `<div class="sd-card" data-zone="list" ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'list')">
+    <div class="sd-head"><span class="sd-title">${title}</span><span class="sd-count">${doneCount}/${tasks.length}</span></div>
+    <div class="sd-progress"><i style="width:${pct}%"></i></div>`;
+  for (const ev of dayEvents) htm += sdEventRow(ev);
+  for (const t of carries) htm += sdTaskRow(t, 'list', { carry: true });
+  for (const t of tasks) htm += sdTaskRow(t, 'list', {});
+  if (!tasks.length && !carries.length) {
+    htm += `<div style="padding:14px 4px;font-size:13px;color:var(--muted);">${isDayOff(day) ? 'Day off. Enjoy.' : 'Nothing on the list yet.'}</div>`;
   }
-}
-
-function renderInlineEvent(ev) {
-  const isPast = viewDay === today() && ev.time && timeToMin(ev.time) < getNow();
-  const locStr = ev.location ? ` &middot; ${ev.location}` : '';
-  const notesStr = ev.notes ? ` &middot; ${ev.notes}` : '';
-  const timeCell = ev.time
-    ? `<div class="ie-time">${ev.time}</div>`
-    : `<div class="ie-time ie-allday">ALL&nbsp;DAY</div>`;
-  return `<div class="inline-event ${isPast?'is-past':''} ${ev.holiday?'is-holiday':''} ${ev.mufc?'is-mufc':''}" onclick="editEvent('${ev.id}')">
-    <div class="ie-bar"></div>
-    ${timeCell}
-    <div class="ie-info">
-      <div class="ie-title">${ev.mufc?'⚽ ':''}${ev.text}</div>
-      ${(ev.location || ev.notes) ? `<div class="ie-sub">${locStr}${notesStr}</div>` : ''}
+  htm += `<div class="bk-add" onclick="this.querySelector('input').focus()">
+      <span class="bk-add-plus">+</span>
+      <input class="bk-add-inp" type="text" placeholder="Add to ${isToday ? 'today' : 'this day'}..."
+        onkeydown="if(event.key==='Enter'){listQuickAdd('list',this);event.stopPropagation();}"
+        onfocus="this.parentElement.classList.add('focused')"
+        onblur="this.parentElement.classList.remove('focused')">
     </div>
-    <div class="ie-badge">${ev.mufc?'MAN UTD':ev.holiday?'HOLIDAY':'EVENT'}</div>
   </div>`;
-}
-
-function renderBlock(b, curBlock) {
-  const st = blockStatus(b);
-  const isNow = curBlock && b.id === curBlock.id;
-  const { recurring, weekly, custom } = blockTasks(b.id, viewDay);
-  const all = [...recurring, ...weekly, ...custom];
-  const bd = all.filter(t=>isDone(t.id, viewDay)).length;
-  const bt = all.length;
-  const allDone = bt>0 && bd===bt;
-  const totalMins = all.reduce((s,t) => s + (t.dur || 15), 0);
-  const overCap = totalMins > b.dur;
-  const shouldOpen = isNow || openBlocks.has(b.id); // current block + manually opened blocks stay open
-  const justAdded = b.id === _lastAddedBlock;
-
-  const workCls = b.workZone ? 'work-zone' : '';
-  let htm = `
-    <div class="block ${workCls} ${isNow?'is-now':''} ${st==='past'?'is-past':''} ${b.isBreak?'is-break':''} ${justAdded?'just-added':''} ${shouldOpen?'expanded':''}" data-block="${b.id}">
-      <div class="bk-hd" onclick="togBlock('${b.id}')"
-        ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'${b.id}')"
-      >
-        <div class="bk-cat cat-bg-${b.cat}"></div>
-        <div class="bk-time">${b.time} - ${b.end}</div>
-        <div class="bk-info">
-          <div class="bk-title">${b.title} ${isNow?'<span class="now-tag">NOW</span>':''}${b.id==='gym'?'<span class="gym-gear" onclick="event.stopPropagation();toggleGymPicker()" title="Change gym days">&#9881;</span>':''}</div>
-          <div class="bk-sub">${b.sub}</div>
-        </div>
-        ${bt>0?`<div class="bk-prog ${allDone?'all-done':''}">${bd}/${bt}</div>`:''}
-        ${totalMins > 0 ? `<div class="bk-cap ${overCap?'over':''}">${totalMins}/${b.dur}m</div>` : ''}
-        ${!b.isBreak?`<div class="bk-chev ${shouldOpen?'open':''}" id="ch-${b.id}">&#9654;</div>`:''}
-      </div>
-      ${!b.isBreak?`
-      <div class="bk-body ${shouldOpen?'open':''}" id="bd-${b.id}"
-        ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'${b.id}')"
-      >
-        <div class="bk-inner">
-          ${recurring.map(t=>taskHtml(t,'r',b.id)).join('')}
-          ${weekly.length?'<div class="t-divider">This week</div>':''}
-          ${weekly.map(t=>taskHtml(t,'w',b.id)).join('')}
-          ${custom.length?'<div class="t-divider">Added</div>':''}
-          ${custom.map(t=>taskHtml(t,'c',b.id)).join('')}
-          ${b.id==='gym'?'<div id="gymPickerSlot"></div>':''}
-          <div class="bk-add" onclick="this.querySelector('input').focus()">
-            <span class="bk-add-plus">+</span>
-            <input class="bk-add-inp" type="text" placeholder="Add task..."
-              onkeydown="if(event.key==='Enter'){blockQuickAdd('${b.id}',this);event.stopPropagation();}"
-              onfocus="this.parentElement.classList.add('focused')"
-              onblur="this.parentElement.classList.remove('focused')">
-          </div>
-        </div>
-      </div>`:''}
-    </div>`;
   return htm;
 }
 
-function taskHtml(t, type, bid) {
-  const d = isDone(t.id, viewDay);
+function sdEventRow(ev) {
+  const cls = ev.mufc ? ' mufc' : ev.holiday ? ' holiday' : '';
+  const badge = ev.mufc ? 'MAN UTD' : ev.holiday ? 'HOLIDAY' : 'EVENT';
+  const locStr = ev.location ? ` &middot; ${ev.location}` : '';
+  return `<div class="sd-ev${cls}" onclick="editEvent('${ev.id}')">
+    <span class="sd-ev-time">${ev.time || 'ALL&nbsp;DAY'}</span>
+    <span class="sd-ev-name">${ev.mufc ? '⚽ ' : ''}${ev.text}${locStr ? `<span style="color:var(--muted);font-size:11px;">${locStr}</span>` : ''}</span>
+    <span class="sd-ev-badge">${badge}</span>
+  </div>`;
+}
+
+// One task row. `zone` is 'list' or 'parking'; opts.carry marks a carried-over
+// task surfaced from a previous day (t._home).
+function sdTaskRow(t, zone, opts = {}) {
+  const home = opts.carry ? t._home : viewDay;
+  const d = isDone(t.id, home);
+  const type = t._type || 'c';
   const justAdded = t.id === _lastAddedTaskId;
-  const editable = type === 'c' || type === 'w';
+  const repeatTag = type === 'rec' ? '<span style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--accent);opacity:0.7;margin-left:6px;">REPEATS</span>' : '';
+  const carryChip = opts.carry ? '<span class="sd-carry">&#8617; YESTERDAY</span>' : '';
+  const rmBtn = opts.carry
+    ? `<span class="t-rm" title="Stop carrying" onclick="event.stopPropagation();dismissCarry('${home}','${t.id}')">&times;</span>`
+    : type === 'c' ? (t._template ? '' : `<span class="t-rm" onclick="event.stopPropagation();rmCustom('${zone}','${t.id}')">&times;</span>`)
+    : type === 'w' ? `<span class="t-rm" onclick="event.stopPropagation();rmWk('${t.id}')">&times;</span>`
+    : `<span class="t-rm" onclick="event.stopPropagation();rmRecurring('${t.id}')">&times;</span>`;
+  const moveBtn = t._template ? '' : `<span class="t-move" title="Move to&hellip;" onclick="event.stopPropagation();moveMenu('${type}','${t.id}','${zone}','${home}',this)">&#8644;</span>`;
+  const dragAttrs = (opts.carry || t._template) ? '' :
+    `draggable="true" ondragstart="dragTask(event,'${zone}','${type}','${t.id}')" ondragover="dragOverRow(event)" ondragleave="dragLeaveRow(event)" ondrop="dropOnRow(event,'${zone}','${t.id}')"`;
+  const editAttr = t._template ? '' : `style="cursor:pointer;" onclick="editTask('${type}','${zone}','${t.id}')"`;
   return `
-    <div class="task ${justAdded?'just-added-task':''}" draggable="true" ondragstart="dragTask(event,'${type}','${bid}','${t.id}')">
-      <div class="tck ${d?'done':''}" onclick="toggle('${t.id}')"></div>
-      <div class="t-content" ${editable||t.id?.startsWith('rec')?`style="cursor:pointer;" onclick="editTask('${t.id?.startsWith('rec')?'rec':type}','${bid}','${t.id}')"`:''}>
-        <div class="t-text ${d?'done':''}">${t.text}</div>
-        ${t.notes?`<div class="t-bullets">${t.notes.split('\n').filter(l=>l.trim()).map(l=>`<div class="t-bullet">${l.trim()}</div>`).join('')}</div>`:''}
-        ${t.nn?'<div class="t-meta nn">NON-NEGOTIABLE</div>':''}
-        ${type==='w'?`<div class="t-meta">${t.dur||30}min / weekly</div>`:''}
-        ${type==='c'?`<div class="t-meta">${t.dur||30}min / added</div>`:''}
-        ${t.id?.startsWith('rec')?`<div class="t-meta" style="color:var(--accent);opacity:0.7;">${t.dur||30}min / repeats weekly</div>`:''}
+    <div class="task ${justAdded ? 'just-added-task' : ''}" ${dragAttrs}>
+      <span class="sd-grip">&#8942;&#8942;</span>
+      <div class="tck ${d ? 'done' : ''}" onclick="toggle('${t.id}','${home}')"></div>
+      <div class="sd-cat cat-bg-${t.cat || 'life'}"></div>
+      <div class="t-content" ${editAttr}>
+        <div class="t-text ${d ? 'done' : ''}">${t.text}${repeatTag}</div>
+        ${t.notes ? `<div class="t-bullets">${t.notes.split('\n').filter(l => l.trim()).map(l => `<div class="t-bullet">${l.trim()}</div>`).join('')}</div>` : ''}
       </div>
-      ${type==='c'?`<span class="t-move" onclick="moveCustomTask('${bid}','${t.id}',this)" title="Move to another day">&#8644;</span><span class="t-rm" onclick="rmCustom('${bid}','${t.id}')">&times;</span>`:''}
-      ${type==='w'?`<span class="t-rm" onclick="rmWk('${t.id}')">&times;</span>`:''}
+      ${carryChip}
+      ${moveBtn}
+      ${rmBtn}
     </div>`;
 }
 
@@ -4307,71 +3806,31 @@ function parkingTasks(day) {
   return ((S.custom[day] || {})['parking']) || [];
 }
 
-function rmParkingTask(tid) {
-  const p = ((S.custom[viewDay]||{})['parking']) || [];
-  const idx = p.findIndex(t => t.id === tid);
-  if (idx > -1) p.splice(idx, 1);
-  save(); render();
-}
-
 function renderParkingLot(day) {
   // Merge template parking tasks with user-added ones (template ones are static).
   const userTasks = parkingTasks(day);
   const allTasks = [
-    ...PARKING_TEMPLATE.map(t => ({ ...t, _template: true })),
-    ...userTasks,
+    ...PARKING_TEMPLATE.map(t => ({ ...t, _template: true, _type: 'c' })),
+    ...userTasks.map(t => ({ ...t, _type: 'c' })),
   ];
   const isPast = day !== today();
-  const justAdded = _lastAddedBlock === 'parking';
+  const done = allTasks.filter(t => isDone(t.id, day)).length;
+  const dropAttrs = isPast ? '' : `ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'parking')"`;
 
-  let inner = '';
-  for (const t of allTasks) {
-    const d = isDone(t.id, viewDay);
-    const justAddedTask = t.id === _lastAddedTaskId;
-    const rmBtn = t._template ? '' : `<span class="t-rm" onclick="rmParkingTask('${t.id}')">&times;</span>`;
-    const moveBtn = t._template ? '' : `<span class="t-move" onclick="event.stopPropagation();moveTaskToDate('c','parking','${t.id}',this)" title="Move to another day">&#8644;</span>`;
-    inner += `
-      <div class="task ${justAddedTask?'just-added-task':''}" ${t._template?'':`draggable="true" ondragstart="dragTask(event,'c','parking','${t.id}')"`}>
-        <div class="tck ${d?'done':''}" onclick="toggle('${t.id}')"></div>
-        <div class="t-content" ${t._template?'':`style="cursor:pointer;" onclick="editTask('c','parking','${t.id}')"`}>
-          <div class="t-text ${d?'done':''}">${t.text}</div>
-          ${t.notes?`<div class="t-bullets">${t.notes.split('\n').filter(l=>l.trim()).map(l=>`<div class="t-bullet">${l.trim()}</div>`).join('')}</div>`:''}
-        </div>
-        ${moveBtn}
-        ${rmBtn}
-      </div>`;
-  }
+  let htm = `<div class="sd-card sd-park" data-zone="parking" ${dropAttrs}>
+    <div class="sd-head"><span class="sd-title">Parking Lot <span class="parking-tag">Optional</span></span><span class="sd-count">${done}/${allTasks.length}</span></div>`;
+  for (const t of allTasks) htm += sdTaskRow(t, 'parking', {});
   if (!isPast) {
-    inner += `<div class="bk-add" onclick="this.querySelector('input').focus()">
+    htm += `<div class="bk-add" onclick="this.querySelector('input').focus()">
       <span class="bk-add-plus">+</span>
       <input class="bk-add-inp" type="text" placeholder="Park something for later..."
-        onkeydown="if(event.key==='Enter'){blockQuickAdd('parking',this);event.stopPropagation();}"
+        onkeydown="if(event.key==='Enter'){listQuickAdd('parking',this);event.stopPropagation();}"
         onfocus="this.parentElement.classList.add('focused')"
         onblur="this.parentElement.classList.remove('focused')">
     </div>`;
   }
-
-  const total = allTasks.length;
-  const done = allTasks.filter(t => isDone(t.id, day)).length;
-  const dropAttrs = isPast ? '' : `ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'parking')"`;
-
-  return `
-    <div class="block parking-block expanded ${justAdded?'just-added':''} ${isPast?'is-past':''}" data-block="parking">
-      <div class="bk-hd" ${dropAttrs}>
-        <div class="bk-cat cat-bg-parking"></div>
-        <div class="bk-time">PARKING</div>
-        <div class="bk-info">
-          <div class="bk-title">Parking Lot <span class="parking-tag">Optional</span></div>
-          <div class="bk-sub">For when the main work is done. Doesn't count toward today's progress.</div>
-        </div>
-        ${total > 0 ? `<div class="bk-prog">${done}/${total}</div>` : ''}
-      </div>
-      <div class="bk-body open" id="bd-parking" ${dropAttrs}>
-        <div class="bk-inner">
-          ${inner}
-        </div>
-      </div>
-    </div>`;
+  htm += `</div>`;
+  return htm;
 }
 
 function shortDayCapacityHtml(day) {
@@ -4389,86 +3848,6 @@ function shortDayCapacityHtml(day) {
   return '';
 }
 
-function renderEveningBlock(day) {
-  const tasks = eveningTasks(day);
-  const done = tasks.filter(t => isDone(t.id, day)).length;
-  const total = tasks.length;
-  const allDone = total > 0 && done === total;
-  const justAdded = _lastAddedBlock === 'evening';
-  const isPast = day !== today();
-
-  let inner = '';
-  for (const t of tasks) {
-    inner += eveningTaskHtml(t);
-  }
-  if (!isPast) {
-    inner += `<div class="bk-add" onclick="this.querySelector('input').focus()">
-      <span class="bk-add-plus">+</span>
-      <input class="bk-add-inp" type="text" placeholder="Add task..."
-        onkeydown="if(event.key==='Enter'){blockQuickAdd('evening',this);event.stopPropagation();}"
-        onfocus="this.parentElement.classList.add('focused')"
-        onblur="this.parentElement.classList.remove('focused')">
-    </div>`;
-  }
-
-  const dropAttrs = isPast ? '' : `ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'evening')"`;
-
-  return `
-    <div class="block evening-block expanded ${justAdded?'just-added':''} ${isPast?'is-past':''}" data-block="evening">
-      <div class="bk-hd" ${dropAttrs}>
-        <div class="bk-cat cat-bg-evening"></div>
-        <div class="bk-time">EVENING</div>
-        <div class="bk-info">
-          <div class="bk-title">Off the clock</div>
-          <div class="bk-sub">Loose tasks, no schedule. Drag any outstanding task in.</div>
-        </div>
-        ${total > 0 ? `<div class="bk-prog ${allDone?'all-done':''}">${done}/${total}</div>` : ''}
-      </div>
-      <div class="bk-body open" id="bd-evening" ${dropAttrs}>
-        <div class="bk-inner">
-          ${inner}
-        </div>
-      </div>
-    </div>`;
-}
-
-function eveningTaskHtml(t) {
-  const d = isDone(t.id, viewDay);
-  const justAdded = t.id === _lastAddedTaskId;
-  return `
-    <div class="task ${justAdded?'just-added-task':''}" draggable="true" ondragstart="dragTask(event,'c','evening','${t.id}')">
-      <div class="tck ${d?'done':''}" onclick="toggle('${t.id}')"></div>
-      <div class="t-content" style="cursor:pointer;" onclick="editTask('c','evening','${t.id}')">
-        <div class="t-text ${d?'done':''}">${t.text}</div>
-        ${t.notes?`<div class="t-bullets">${t.notes.split('\n').filter(l=>l.trim()).map(l=>`<div class="t-bullet">${l.trim()}</div>`).join('')}</div>`:''}
-      </div>
-      <span class="t-move" onclick="event.stopPropagation();moveTaskToDate('c','evening','${t.id}',this)" title="Move to another day">&#8644;</span>
-      <span class="t-rm" onclick="rmEveningTask('${t.id}')">&times;</span>
-    </div>`;
-}
-
-function renderOutstanding(tasks) {
-  if (!tasks.length) return '';
-  let html = `<div class="outstanding">
-    <div class="outstanding-hd">
-      <span class="outstanding-label">Still outstanding</span>
-      <span class="outstanding-count">${tasks.length}</span>
-      <span class="outstanding-sub">drag into evening or tick to clear</span>
-    </div>`;
-  for (const t of tasks) {
-    const d = isDone(t.id, viewDay);
-    html += `<div class="ot-row" draggable="true" ondragstart="dragTask(event,'${t._type}','${t.blockId}','${t.id}')">
-      <div class="tck ${d?'done':''}" onclick="event.stopPropagation();toggle('${t.id}')"></div>
-      <div class="ot-cat cat-bg-${t.blockCat||t.cat||'admin'}"></div>
-      <div class="ot-text ${d?'done':''}" onclick="event.stopPropagation();toggle('${t.id}')">${t.text}</div>
-      <div class="ot-time">${t.blockTime}</div>
-      <span class="t-move" onclick="event.stopPropagation();moveTaskToDate('${t._type}','${t.blockId}','${t.id}',this)" title="Move to another day">&#8644;</span>
-    </div>`;
-  }
-  html += `</div>`;
-  return html;
-}
-
 function rmRecurring(id) {
   S.recurring = S.recurring.filter(r => r.id !== id);
   save(); render();
@@ -4478,12 +3857,12 @@ function focusQuickAdd() {
   document.getElementById('quickAddInp')?.focus();
 }
 
-// ── DRAG AND DROP ──
-function dragTask(e, type, fromBid, tid) {
-  e.dataTransfer.setData('text/plain', JSON.stringify({ type, fromBid, tid }));
+// ── DRAG AND DROP (reorder within a list, or move between list & parking) ──
+function dragTask(e, fromZone, type, tid) {
+  e.dataTransfer.setData('text/plain', JSON.stringify({ fromZone, type, tid }));
   e.dataTransfer.effectAllowed = 'move';
   // Add dragging class after a tick so it doesn't affect the drag image
-  setTimeout(() => e.target.closest('.task, .ot-row')?.classList.add('dragging'), 0);
+  setTimeout(() => e.target.closest('.task')?.classList.add('dragging'), 0);
 }
 function dragOverBlock(e) {
   e.preventDefault();
@@ -4493,105 +3872,78 @@ function dragOverBlock(e) {
 function dragLeaveBlock(e) {
   e.currentTarget.classList.remove('drag-over');
 }
-function dropTask(e, toBid) {
+function dragOverRow(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drop-above');
+}
+function dragLeaveRow(e) {
+  e.currentTarget.classList.remove('drop-above');
+}
+function dropOnRow(e, zone, beforeTid) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('drop-above');
+  let data;
+  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
+  moveOrReorder(data, zone, beforeTid);
+}
+function dropTask(e, toZone) {
+  // Card-level drop: append to the end of that zone.
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
   let data;
   try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
-  const { type, fromBid, tid } = data;
-  if (fromBid === toBid) return; // dropped on same block
-
-  let task;
-  if (type === 'c') {
-    const c = (S.custom[viewDay] || {})[fromBid];
-    if (!c) return;
-    const idx = c.findIndex(t => t.id === tid);
-    if (idx === -1) return;
-    task = c.splice(idx, 1)[0];
-  } else if (type === 'w') {
-    task = S.weekly.find(w => w.id === tid);
-    if (!task) return;
-    if (toBid === 'evening') {
-      // Convert weekly to a custom evening task for today
-      const idx = S.weekly.findIndex(w => w.id === tid);
-      if (idx > -1) S.weekly.splice(idx, 1);
-      if (!S.custom[viewDay]) S.custom[viewDay] = {};
-      if (!S.custom[viewDay]['evening']) S.custom[viewDay]['evening'] = [];
-      S.custom[viewDay]['evening'].push({
-        id: task.id, text: task.text, dur: task.dur, cat: task.cat, nn: task.nn, notes: task.notes, done: false
-      });
-      _lastAddedBlock = 'evening';
-      save(); render();
-      return;
+  moveOrReorder(data, toZone, null);
+}
+function moveOrReorder(data, toZone, beforeTid) {
+  const { fromZone, type, tid } = data;
+  if (!tid || tid === beforeTid) return;
+  if (fromZone === toZone) {
+    // Reorder within the zone
+    if (toZone === 'list') {
+      const ids = listTasks(viewDay).map(t => t.id).filter(id => id !== tid);
+      if (beforeTid) {
+        const i = ids.indexOf(beforeTid);
+        ids.splice(i === -1 ? ids.length : i, 0, tid);
+      } else {
+        ids.push(tid);
+      }
+      S.order[viewDay] = ids;
+    } else {
+      const arr = (S.custom[viewDay] || {}).parking || [];
+      const i = arr.findIndex(t => t.id === tid);
+      if (i === -1) return;
+      const [task] = arr.splice(i, 1);
+      const j = beforeTid ? arr.findIndex(t => t.id === beforeTid) : -1;
+      if (j === -1) arr.push(task); else arr.splice(j, 0, task);
     }
-    const targetBlock = TEMPLATE.find(b => b.id === toBid);
-    if (targetBlock) task.cat = targetBlock.cat;
-    openBlocks.add(toBid);
-    save(); render();
-    return;
-  } else if (type === 'rec') {
-    // User-recurring → drop a one-off custom copy at the target (e.g. evening)
-    const r = S.recurring.find(x => x.id === tid);
-    if (!r) return;
-    if (!S.custom[viewDay]) S.custom[viewDay] = {};
-    if (!S.custom[viewDay][toBid]) S.custom[viewDay][toBid] = [];
-    S.custom[viewDay][toBid].push({
-      id: r.id, text: r.text, dur: r.dur, cat: r.cat, notes: r.notes, done: false
-    });
-    if (toBid === 'evening') _lastAddedBlock = 'evening';
-    else openBlocks.add(toBid);
-    save(); render();
-    return;
-  } else if (type === 'r') {
-    // Template/recurring task — hide from original block today, copy to target as custom
-    const srcBlock = TEMPLATE.find(b => b.id === fromBid);
-    const srcTask = srcBlock?.tasks?.find(t => t.id === tid);
-    if (!srcTask) return;
-    // Store a move override for today
-    if (!S.taskMoves) S.taskMoves = {};
-    if (!S.taskMoves[viewDay]) S.taskMoves[viewDay] = {};
-    S.taskMoves[viewDay][tid] = toBid;
-    // Create custom copy in target block
-    task = { id: tid, text: srcTask.text, dur: srcTask.dur || 15, nn: srcTask.nn, done: false, cat: srcTask.cat || 'admin' };
-    if (!S.custom[viewDay]) S.custom[viewDay] = {};
-    if (!S.custom[viewDay][toBid]) S.custom[viewDay][toBid] = [];
-    S.custom[viewDay][toBid].push(task);
-    openBlocks.add(toBid);
     save(); render();
     return;
   }
-
-  if (!task) return;
-  // Update category to match target block
-  const targetBlock = TEMPLATE.find(b => b.id === toBid);
-  if (targetBlock) task.cat = targetBlock.cat;
-
-  if (!S.custom[viewDay]) S.custom[viewDay] = {};
-  if (!S.custom[viewDay][toBid]) S.custom[viewDay][toBid] = [];
-  S.custom[viewDay][toBid].push(task);
-
-  openBlocks.add(toBid);
-  save(); render();
+  // Cross-zone (list ↔ parking): same semantics as the ⇄ move menu.
+  execMove(type, tid, fromZone, viewDay, toZone === 'parking' ? 'parking' : 'date:' + viewDay);
 }
 
-function blockQuickAdd(blockId, inp) {
+function listQuickAdd(zone, inp) {
   const text = inp.value.trim();
   if (!text) return;
-  const cat = detectCat(text) || (blockId === 'evening' ? 'life' : TEMPLATE.find(b=>b.id===blockId)?.cat) || 'admin';
+  const cat = detectCat(text) || (zone === 'parking' ? 'privatelabel' : 'life');
   const dur = parseDuration(text) || 30;
   let cleanText = text.replace(/\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|mins?|minutes?)\b/gi, '').replace(/\s{2,}/g,' ').trim() || text;
   const taskId = 'ct' + uid();
   if (!S.custom[viewDay]) S.custom[viewDay] = {};
-  if (!S.custom[viewDay][blockId]) S.custom[viewDay][blockId] = [];
-  S.custom[viewDay][blockId].push({ id: taskId, text: cleanText, done: false, cat, dur });
+  if (!S.custom[viewDay][zone]) S.custom[viewDay][zone] = [];
+  S.custom[viewDay][zone].push({ id: taskId, text: cleanText, done: false, cat, dur });
   _lastAddedTaskId = taskId;
-  openBlocks.add(blockId);
   save();
   render();
-  // Re-focus the input in the same block after render
+  // Re-focus the input in the same card after render
   setTimeout(() => {
-    const newInp = document.querySelector(`#bd-${blockId} .bk-add-inp`);
+    const newInp = document.querySelector(`.sd-card[data-zone="${zone}"] .bk-add-inp`);
     if (newInp) newInp.focus();
+    setTimeout(() => { _lastAddedTaskId = null; }, 1600);
   }, 50);
 }
 
@@ -4605,61 +3957,14 @@ function quickAdd() {
   let cleanText = text.replace(/\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|mins?|minutes?)\b/gi, '').replace(/\s{2,}/g,' ').trim() || text;
   const taskId = 'ct' + uid();
 
-  if (isWeekend(viewDay)) {
-    if (!S.custom[viewDay]) S.custom[viewDay] = {};
-    if (!S.custom[viewDay]['weekend']) S.custom[viewDay]['weekend'] = [];
-    S.custom[viewDay]['weekend'].push({ id: taskId, text: cleanText, done: false, cat, dur });
-  } else if (isEveningMode(viewDay)) {
-    if (!S.custom[viewDay]) S.custom[viewDay] = {};
-    if (!S.custom[viewDay]['evening']) S.custom[viewDay]['evening'] = [];
-    S.custom[viewDay]['evening'].push({ id: taskId, text: cleanText, done: false, cat, dur });
-    _lastAddedBlock = 'evening';
-  } else {
-    const blk = smartBlock(cat, viewDay, dur);
-    if (!S.custom[viewDay]) S.custom[viewDay] = {};
-    if (!S.custom[viewDay][blk]) S.custom[viewDay][blk] = [];
-    S.custom[viewDay][blk].push({ id: taskId, text: cleanText, done: false, cat, dur });
-    _lastAddedBlock = blk;
-    openBlocks.add(blk);
-  }
+  if (!S.custom[viewDay]) S.custom[viewDay] = {};
+  if (!S.custom[viewDay].list) S.custom[viewDay].list = [];
+  S.custom[viewDay].list.push({ id: taskId, text: cleanText, done: false, cat, dur });
   _lastAddedTaskId = taskId;
   save();
   render();
   // Re-focus the input after render
   setTimeout(() => document.getElementById('quickAddInp')?.focus(), 50);
-}
-
-function getAllTasks(day) {
-  let all = [];
-  const dow = new Date(day + 'T00:00:00').getDay();
-  const recur = S.recurring.filter(r => r.dayOfWeek === dow);
-  if (isWeekend(day)) {
-    const wknd = ((S.custom[day]||{})['weekend']) || [];
-    const wkly = S.weekly.filter(w => w.day === day);
-    all.push(...wknd, ...wkly, ...recur);
-  } else {
-    for (const b of TEMPLATE) {
-      if (b.isBreak) continue;
-      const {recurring,weekly,custom} = blockTasks(b.id, day);
-      all.push(...recurring,...weekly,...custom);
-    }
-    all.push(...eveningTasks(day));
-  }
-  return all;
-}
-
-function rmWeekendTask(tid) {
-  const wknd = ((S.custom[viewDay]||{})['weekend']) || [];
-  const idx = wknd.findIndex(t => t.id === tid);
-  if (idx > -1) wknd.splice(idx, 1);
-  save(); render();
-}
-
-function rmEveningTask(tid) {
-  const ev = ((S.custom[viewDay]||{})['evening']) || [];
-  const idx = ev.findIndex(t => t.id === tid);
-  if (idx > -1) ev.splice(idx, 1);
-  save(); render();
 }
 
 function renderNn() {
@@ -4750,16 +4055,11 @@ function renderStats() {
   const d = S.done[viewDay]||{};
   const wknd = isWeekend(viewDay);
   const nnPill = document.getElementById('sNnPill');
-  const hrPill = document.getElementById('sHoursPill');
   if (nnPill) nnPill.style.display = wknd ? 'none' : '';
-  if (hrPill) hrPill.style.display = wknd ? 'none' : '';
   document.getElementById('sNn').textContent = `${NN.filter(n=>d[n.link]).length}/${NN.length}`;
-  const all = getAllTasks(viewDay);
+  const all = listTasks(viewDay);
   const done = all.filter(t=>isDone(t.id,viewDay)).length;
   document.getElementById('sTasks').textContent = `${done}/${all.length}`;
-  const tmpl = getTemplateForDay(viewDay);
-  const mins = tmpl.filter(b=>!b.isBreak).reduce((s,b)=>s+b.dur,0);
-  document.getElementById('sHours').textContent = `${Math.floor(mins/60)}h`;
   document.getElementById('sStreak').textContent = streakCount();
 }
 
@@ -4770,34 +4070,19 @@ function renderPaText() {
   const h = new Date().getHours();
   const d = S.done[today()]||{};
   const nn = NN.filter(n=>d[n.link]).length;
-  const all = getAllTasks(today());
+  const all = listTasks(today());
   const done = all.filter(t=>isDone(t.id,today())).length;
 
-  if (h<9) el.textContent = "Your schedule starts at 09:00. Rest up.";
+  if (h<9) el.textContent = "Early yet. Ease into the list.";
   else if (h<11 && nn===0) el.textContent = "Zero non-negotiables done. Start with the easiest one. Momentum builds.";
   else if (h<12 && nn<3) el.textContent = `${nn}/${NN.length} non-negs. Get to 3 before lunch.`;
   else if (nn===NN.length && done===all.length) el.textContent = "Clean sweep. Every box ticked. Go enjoy your evening.";
   else if (nn===NN.length) el.textContent = `All non-negs done. ${all.length-done} tasks left. Keep pushing.`;
-  else if (h>=16) el.textContent = `Day wrapping up. ${nn}/${NN.length} non-negs, ${done}/${all.length} tasks. Finish the EOD wrap.`;
-  else el.textContent = `${done}/${all.length} done. ${NN.length-nn} non-negs remaining. Stay in the blocks.`;
+  else if (h>=16) el.textContent = `Day wrapping up. ${nn}/${NN.length} non-negs, ${done}/${all.length} tasks. Finish strong.`;
+  else el.textContent = `${done}/${all.length} done. ${NN.length-nn} non-negs remaining. Keep ticking.`;
 }
 
 // ── INTERACTIONS ──
-function togBlock(id) {
-  const b = document.getElementById('bd-'+id);
-  const c = document.getElementById('ch-'+id);
-  if (!b) return;
-  const opening = !b.classList.contains('open');
-  b.classList.toggle('open');
-  if (c) c.classList.toggle('open');
-  // Toggle expanded class on parent block
-  const block = b.closest('.block');
-  if (block) block.classList.toggle('expanded', opening);
-  // Track manually opened/closed blocks so render() preserves state
-  if (opening) openBlocks.add(id);
-  else openBlocks.delete(id);
-}
-
 function toggleSbSec(id, chevId) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -4823,11 +4108,6 @@ function toggleDataMenu(btn) {
     const close = (e) => { if (!btn.contains(e.target)) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
     setTimeout(() => document.addEventListener('click', close), 0);
   }
-}
-
-function togglePast() {
-  showPastBlocks = !showPastBlocks;
-  render();
 }
 
 function switchDay(dk) { viewDay = dk; render(); }
@@ -4971,15 +4251,6 @@ function searchTasks(query) {
   const results = [];
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  // Search recurring template tasks
-  for (const b of TEMPLATE) {
-    for (const t of (b.tasks || [])) {
-      if (t.text.toLowerCase().includes(q)) {
-        results.push({ text: t.text, type: 'recurring', block: b.title, cat: b.cat, day: null, jumpDay: today() });
-      }
-    }
-  }
-
   // Search weekly tasks
   for (const w of S.weekly) {
     if (w.text.toLowerCase().includes(q)) {
@@ -4988,14 +4259,14 @@ function searchTasks(query) {
     }
   }
 
-  // Search custom tasks (across all days)
-  for (const [day, blocks] of Object.entries(S.custom)) {
-    for (const [bid, tasks] of Object.entries(blocks)) {
+  // Search custom tasks (across all days: day list + parking)
+  for (const [day, zones] of Object.entries(S.custom)) {
+    for (const [zone, tasks] of Object.entries(zones)) {
+      if (!Array.isArray(tasks)) continue;
       for (const t of tasks) {
         if (t.text.toLowerCase().includes(q)) {
           const dayLbl = new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
-          const blkDef = TEMPLATE.find(b=>b.id===bid);
-          results.push({ text: t.text, type: 'added', block: blkDef?.title || bid, cat: t.cat, day: dayLbl, jumpDay: day, jumpBlock: bid });
+          results.push({ text: t.text, type: 'added', block: zone === 'parking' ? 'Parking Lot' : 'Day list', cat: t.cat, day: dayLbl, jumpDay: day, jumpZone: zone });
         }
       }
     }
@@ -5064,17 +4335,11 @@ function searchJump(idx) {
     return;
   }
 
-  // If it has a specific block, expand it
-  if (r.jumpBlock) {
+  // Scroll the matching card into view
+  if (r.jumpZone) {
     setTimeout(() => {
-      const body = document.getElementById('bd-' + r.jumpBlock);
-      const chev = document.getElementById('ch-' + r.jumpBlock);
-      if (body && !body.classList.contains('open')) {
-        body.classList.add('open');
-        if (chev) chev.classList.add('open');
-      }
-      const blockEl = document.querySelector(`[data-block="${r.jumpBlock}"]`);
-      if (blockEl) blockEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const cardEl = document.querySelector(`.sd-card[data-zone="${r.jumpZone}"]`);
+      if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
   }
 }
@@ -5101,6 +4366,9 @@ document.addEventListener('keydown', e => {
 const cut = new Date(); cut.setDate(cut.getDate()-30);
 Object.keys(S.done).forEach(k=>{ if(new Date(k)<cut) delete S.done[k]; });
 Object.keys(S.custom).forEach(k=>{ if(new Date(k)<cut) delete S.custom[k]; });
+Object.keys(S.order).forEach(k=>{ if(new Date(k)<cut) delete S.order[k]; });
+Object.keys(S.skips).forEach(k=>{ if(new Date(k)<cut) delete S.skips[k]; });
+Object.keys(S.carryDismissed).forEach(k=>{ if(new Date(k)<cut) delete S.carryDismissed[k]; });
 S.daysOff = S.daysOff.filter(d => new Date(d) >= cut);
 save();
 
@@ -5271,7 +4539,9 @@ function adoptState(data) {
     // Same post-load fixups as startup
     if (!S.daysOff) S.daysOff = [];
     if (!S.recurring) S.recurring = [];
-    if (!S.taskMoves) S.taskMoves = {};
+    if (!S.order) S.order = {};
+    if (!S.skips) S.skips = {};
+    if (!S.carryDismissed) S.carryDismissed = {};
     if (!S.gymDays) S.gymDays = [1, 2, 4];
     syncGymDays();
     // Re-apply countdown seeds/pins so a remote state saved before they existed
