@@ -2256,13 +2256,21 @@ let viewDay = today();
 let viewWeekOffset = 0;
 let _lastAddedTaskId = null; // track last added task for highlight
 
-function save() {
+// saveLocal: persist without claiming sync authority. Automatic changes
+// (startup seeds, fixture refresh) MUST use this — they run identically on
+// every device, so they never need to push. Marking them dirty is what let a
+// stale device shove its whole old state over the cloud on 8 Jul 2026,
+// deleting events created elsewhere. Only real user edits call save().
+function saveLocal() {
   S._v = DATA_VERSION;
   S._lastSaved = new Date().toISOString();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
   localStorage.removeItem('dos4');
   // Rolling localStorage backup (keeps last 3 days)
   rollingBackup();
+}
+function save() {
+  saveLocal();
   scheduleCloudPush();
 }
 
@@ -2285,6 +2293,14 @@ let _applyingRemote = false;
 function syncKey() { return localStorage.getItem(SYNC_KEY_LS) || ''; }
 function syncDirty() { return localStorage.getItem(SYNC_DIRTY_LS) === '1'; }
 function setSyncDirty(v) { localStorage.setItem(SYNC_DIRTY_LS, v ? '1' : '0'); }
+// One-time reset (2026-07-10): before the saveLocal() fix, EVERY launch
+// auto-set the dirty flag, so every device is carrying stale auto-dirt that
+// would push-before-pull one more time. Clear it once; real unsent edits are
+// far rarer than the universal auto-dirt was.
+if (!localStorage.getItem('dailyOS_dirtyReset1')) {
+  setSyncDirty(false);
+  localStorage.setItem('dailyOS_dirtyReset1', '1');
+}
 
 // ── ROLLING BACKUP (localStorage, no file downloads) ──
 function rollingBackup() {
@@ -2586,7 +2602,9 @@ async function refreshMufcFixtures() {
       });
       // Never delete: stored fixtures missing from the API are left alone.
     });
-    if (changed) { save(); render(); } // save() persists + scheduleCloudPush()
+    // saveLocal, NOT save(): fixture corrections are auto-derived on every
+    // device — pushing them let a stale device clobber the cloud (8 Jul 2026).
+    if (changed) { saveLocal(); render(); }
   } catch (e) {
     console.warn('MUFC fixture refresh failed', e);
   }
@@ -2662,7 +2680,29 @@ if (!S._holidaysV1) {
   dataChanged = true;
 }
 
-if (dataChanged) save();
+// One-time recovery (2026-07-10): four events created 6 Jul were wiped by a
+// stale-device sync push (root cause: auto-changes marked the device dirty,
+// and dirty-local-wins pushed old state over the cloud — see saveLocal()).
+// Re-added by ORIGINAL id: id-match is idempotent and immune to text
+// collisions (an older 'Dentist' event exists in history). Hoisted so
+// adoptState can re-apply after every sync pull — a stale push can't re-wipe.
+function ensureRecoveredEvents() {
+  let changed = false;
+  [
+    { id:'mr9o22arqdgmv', text:'Annual Reports [US]', date:'2026-07-09', repeat:'none', time:null,    reminder:null },
+    { id:'mr9o2uppoytsw', text:'Dentist',             date:'2026-07-17', repeat:'none', time:'14:20', reminder:null },
+    { id:'mr9o37v8l3fmr', text:'Steph Wedding',       date:'2026-07-20', repeat:'none', time:'13:30', reminder:null },
+    { id:'mr9o43l6po9ri', text:"Connie's Party",      date:'2026-07-25', repeat:'none', time:'11:30', reminder:null },
+  ].forEach(ev => {
+    if (!S.events.some(e => e.id === ev.id)) { S.events.push({ ...ev }); changed = true; }
+  });
+  return changed;
+}
+if (ensureRecoveredEvents()) dataChanged = true;
+
+// Seeds are auto-derived on every device — persist locally WITHOUT marking
+// the state dirty for sync (see saveLocal comment).
+if (dataChanged) saveLocal();
 
 function getMon(d) {
   const x = new Date(d);
@@ -4370,7 +4410,11 @@ Object.keys(S.order).forEach(k=>{ if(new Date(k)<cut) delete S.order[k]; });
 Object.keys(S.skips).forEach(k=>{ if(new Date(k)<cut) delete S.skips[k]; });
 Object.keys(S.carryDismissed).forEach(k=>{ if(new Date(k)<cut) delete S.carryDismissed[k]; });
 S.daysOff = S.daysOff.filter(d => new Date(d) >= cut);
-save();
+// saveLocal, NOT save(): this purge runs on EVERY launch on every device.
+// As save() it marked every device dirty at every open, so cloudPull's
+// "dirty local wins" branch meant sync-enabled devices NEVER pulled first —
+// the root cause of the recurring stale-device clobbers.
+saveLocal();
 
 // ── NOTIFICATIONS / REMINDERS ──
 function requestNotificationPermission() {
@@ -4548,6 +4592,7 @@ function adoptState(data) {
     // (or from an older client) can't permanently clobber them.
     ensureCountdowns();
     ensureMufcFixtures();
+    ensureRecoveredEvents();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
     render();
   } finally {
