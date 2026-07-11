@@ -2730,7 +2730,8 @@ function isDayOff(dayStr) { return S.daysOff.includes(dayStr); }
 // Any custom task left unticked on yesterday's (or the day before's) list
 // surfaces at the top of today with a ↩ YESTERDAY chip. Same task, not a copy:
 // ticking it marks it done for its home day. Recurring tasks never carry (they
-// recur anyway); Parking Lot never carries. A task follows for at most 2 days.
+// recur anyway). A task follows for at most 2 days. Parking Lot tasks carry
+// separately with no day cap — see getParkingCarries().
 function getCarryTasks() {
   if (viewDay !== today()) return [];
   const out = [];
@@ -2747,10 +2748,42 @@ function getCarryTasks() {
   return out;
 }
 
+// Parking Lot carry-over: a user-parked task left unticked keeps following
+// into today's Parking Lot until it's ticked or dismissed — no day cap
+// (it's "if I get time" work, so it waits). Template rows re-render daily
+// anyway and live outside S.custom, so only user-added tasks are scanned.
+function getParkingCarries() {
+  if (viewDay !== today()) return [];
+  const tk = today();
+  // Seed with today's own parking ids: if a purge-rescued task's old home day
+  // gets resurrected by a stale-device cloud pull, it must not ALSO surface
+  // as a carry alongside today's physical copy.
+  const seen = new Set(((((S.custom[tk]) || {}).parking) || []).map(t => t.id));
+  const out = [];
+  for (const dk of Object.keys(S.custom).sort()) {
+    if (dk >= tk) continue;
+    const dismissed = (S.carryDismissed || {})[dk] || {};
+    for (const t of (S.custom[dk].parking) || []) {
+      if (isDone(t.id, dk) || dismissed[t.id] || seen.has(t.id)) continue;
+      seen.add(t.id);
+      out.push({ ...t, _type: 'c', _home: dk });
+    }
+  }
+  return out;
+}
+
 function dismissCarry(homeDay, tid) {
   if (!S.carryDismissed[homeDay]) S.carryDismissed[homeDay] = {};
   S.carryDismissed[homeDay][tid] = true;
   save(); render();
+}
+
+// Chip text for a carried row: "YESTERDAY" if it's from yesterday, otherwise
+// the home date (parking carries can be arbitrarily old).
+function carryChipLabel(home) {
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  if (home === toDateStr(y)) return 'YESTERDAY';
+  return new Date(home + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase();
 }
 
 function toggleDayOff(dayStr) {
@@ -3800,7 +3833,7 @@ function sdTaskRow(t, zone, opts = {}) {
   const type = t._type || 'c';
   const justAdded = t.id === _lastAddedTaskId;
   const repeatTag = type === 'rec' ? '<span style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--accent);opacity:0.7;margin-left:6px;">REPEATS</span>' : '';
-  const carryChip = opts.carry ? '<span class="sd-carry">&#8617; YESTERDAY</span>' : '';
+  const carryChip = opts.carry ? `<span class="sd-carry">&#8617; ${carryChipLabel(t._home)}</span>` : '';
   const rmBtn = opts.carry
     ? `<span class="t-rm" title="Stop carrying" onclick="event.stopPropagation();dismissCarry('${home}','${t.id}')">&times;</span>`
     : type === 'c' ? (t._template ? '' : `<span class="t-rm" onclick="event.stopPropagation();rmCustom('${zone}','${t.id}')">&times;</span>`)
@@ -3849,6 +3882,7 @@ function parkingTasks(day) {
 function renderParkingLot(day) {
   // Merge template parking tasks with user-added ones (template ones are static).
   const userTasks = parkingTasks(day);
+  const carries = day === today() ? getParkingCarries() : [];
   const allTasks = [
     ...PARKING_TEMPLATE.map(t => ({ ...t, _template: true, _type: 'c' })),
     ...userTasks.map(t => ({ ...t, _type: 'c' })),
@@ -3859,6 +3893,7 @@ function renderParkingLot(day) {
 
   let htm = `<div class="sd-card sd-park" data-zone="parking" ${dropAttrs}>
     <div class="sd-head"><span class="sd-title">Parking Lot <span class="parking-tag">Optional</span></span><span class="sd-count">${done}/${allTasks.length}</span></div>`;
+  for (const t of carries) htm += sdTaskRow(t, 'parking', { carry: true });
   for (const t of allTasks) htm += sdTaskRow(t, 'parking', {});
   if (!isPast) {
     htm += `<div class="bk-add" onclick="this.querySelector('input').focus()">
@@ -4404,6 +4439,21 @@ document.addEventListener('keydown', e => {
 
 // ── CLEAN OLD DATA ──
 const cut = new Date(); cut.setDate(cut.getDate()-30);
+// Rescue unticked parked tasks before their home day is purged: move them
+// into today's parking lot (dedup by id — the purge re-runs every launch and
+// cloud pulls can resurrect old days, so this must stay idempotent). Must run
+// before the S.done purge below, which deletes the done-state it checks.
+Object.keys(S.custom).forEach(k => {
+  if (new Date(k) >= cut) return;
+  const strand = ((S.custom[k] || {}).parking || [])
+    .filter(t => !isDone(t.id, k) && !((S.carryDismissed[k] || {})[t.id]));
+  if (!strand.length) return;
+  const tk = today();
+  if (!S.custom[tk]) S.custom[tk] = {};
+  if (!S.custom[tk].parking) S.custom[tk].parking = [];
+  const have = new Set(S.custom[tk].parking.map(t => t.id));
+  for (const t of strand) if (!have.has(t.id)) S.custom[tk].parking.push(t);
+});
 Object.keys(S.done).forEach(k=>{ if(new Date(k)<cut) delete S.done[k]; });
 Object.keys(S.custom).forEach(k=>{ if(new Date(k)<cut) delete S.custom[k]; });
 Object.keys(S.order).forEach(k=>{ if(new Date(k)<cut) delete S.order[k]; });
