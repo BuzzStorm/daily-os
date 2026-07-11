@@ -1646,6 +1646,12 @@
     padding-top: 0;
     border-top: none;
   }
+  .ev-now {
+    border-left: 2px solid var(--accent);
+    padding-left: 8px;
+    margin-bottom: 2px;
+  }
+  .ev-now .ev-group { color: var(--accent); }
   .ev-item {
     display: flex;
     align-items: center;
@@ -4101,7 +4107,10 @@ function renderEvents() {
   }
 
   el.innerHTML = groups
-    .map(g => `<div class="ev-group">${g.label}</div>${g.items.map(evItemHtml).join('')}`)
+    .map(g => {
+      const html = `<div class="ev-group">${g.label}</div>${g.items.map(evItemHtml).join('')}`;
+      return g.label === 'This week' ? `<div class="ev-now">${html}</div>` : html;
+    })
     .join('');
 }
 
