@@ -3699,7 +3699,7 @@ function renderMain() {
   let htm = `
     <div class="hdr">
       <div class="greeting">${greet}</div>
-      <div class="date-line" style="display:flex;align-items:center;gap:8px;position:relative;">
+      <div class="date-line" style="display:flex;align-items:center;gap:8px;position:relative;flex-wrap:wrap;">
         <span style="cursor:pointer;" onclick="toggleCalendar()">${dateLine}</span>
         <span onclick="toggleCalendar()" style="cursor:pointer;font-size:8px;color:var(--muted);transition:color .12s;" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--muted)'">&#9660;</span>
         ${!isThisWeek ? `<button onclick="goThisWeek()" style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:4px;padding:2px 8px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--accent);letter-spacing:0.5px;">TODAY</button>` : ''}
@@ -3710,6 +3710,7 @@ function renderMain() {
           const off = isDayOff(viewDay);
           return `<button onclick="toggleDayOff('${viewDay}')" style="background:${off?'rgba(196,80,80,0.15)':'var(--s2)'};border:1px solid ${off?'rgba(196,80,80,0.3)':'var(--border)'};border-radius:4px;padding:2px 8px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;color:${off?'#c45050':'var(--muted)'};letter-spacing:0.5px;transition:all .12s;" onmouseenter="this.style.borderColor='var(--accent-border)'" onmouseleave="this.style.borderColor='${off?'rgba(196,80,80,0.3)':'var(--border)'}'">${off?'BACK TO WORK':'DAY OFF'}</button>`;
         })()}
+        <a href="https://book.squareup.com/appointments/nwad0qj8ufr98p/location/LP6ABYFXRWNDT/availability" target="_blank" rel="noopener" title="Book a haircut" style="background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:0.5px;text-decoration:none;transition:all .12s;" onmouseenter="this.style.borderColor='var(--accent-border)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">&#128136; HAIRCUT</a>
         <div id="calendarDrop"></div>
       </div>
       <div class="day-nav">
