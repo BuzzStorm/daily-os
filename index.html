@@ -3806,7 +3806,10 @@ function renderDayCard(day) {
     <div class="sd-progress"><i style="width:${pct}%"></i></div>`;
   for (const ev of dayEvents) htm += sdEventRow(ev);
   for (const t of carries) htm += sdTaskRow(t, 'list', { carry: true });
-  for (const t of tasks) htm += sdTaskRow(t, 'list', {});
+  // Group ticked tasks first — display-only; S.order must stay untouched
+  // because moveOrReorder rebuilds it from listTasks() order on every drag.
+  const grouped = [...tasks].sort((a, b) => Number(isDone(b.id, day)) - Number(isDone(a.id, day)));
+  for (const t of grouped) htm += sdTaskRow(t, 'list', {});
   if (!tasks.length && !carries.length) {
     htm += `<div style="padding:14px 4px;font-size:13px;color:var(--muted);">${isDayOff(day) ? 'Day off. Enjoy.' : 'Nothing on the list yet.'}</div>`;
   }
