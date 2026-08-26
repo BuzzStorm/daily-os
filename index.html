@@ -2807,6 +2807,31 @@ function ensureRecoveredEvents() {
 }
 if (ensureRecoveredEvents()) dataChanged = true;
 
+// Autumn 2026 diary batch (Amy's classes, appointments, christening week).
+// Fixed ids so two devices seeding before their first sync can't duplicate them;
+// the flag makes this a ONE-TIME seed, so deleting any of these makes it stay
+// deleted (the recurring classes run until closed off by hand).
+function ensureAutumn26Events() {
+  if (S._autumn26Seeded) return false;
+  [
+    { id:'sd26hypnowed',    text:'Amy hypno class (Wed 6:30–7:30pm)', date:'2026-08-26', repeat:'weekly', time:'18:30', reminder:null, quiet:true },
+    { id:'sd26hypnofri',    text:'Amy hypno class (Fri 6:30–7:30pm)', date:'2026-08-28', repeat:'weekly', time:'18:30', reminder:null, quiet:true },
+    { id:'sd26vospers',     text:'Vospers (morning)',                 date:'2026-08-29', repeat:'none',   time:null,    reminder:null },
+    { id:'sd26motroy',      text:'Service + MOT w/ Roy (morning)',    date:'2026-09-01', repeat:'none',   time:null,    reminder:null },
+    { id:'sd26amyresit',    text:'Amy resit',                         date:'2026-09-04', repeat:'none',   time:'09:00', reminder:null },
+    { id:'sd26christening', text:'Molly & Ollie christening',         date:'2026-09-12', repeat:'none',   time:'11:00', reminder:null },
+    { id:'sd26birthing',    text:'Birthing Event (12:30–16:30)',      date:'2026-09-12', repeat:'none',   time:'12:30', reminder:null },
+    { id:'sd26manchester',  text:'In Manchester',                     date:'2026-09-13', repeat:'none',   time:null,    reminder:null },
+    { id:'sd26amyleave',    text:'Amy on leave (21–25 Sept)',         date:'2026-09-21', repeat:'none',   time:null,    reminder:null },
+    { id:'sd26doggroom',    text:'Dog groom',                         date:'2026-09-25', repeat:'none',   time:'09:30', reminder:null },
+  ].forEach(ev => {
+    if (!S.events.some(e => e.id === ev.id || e.text === ev.text)) S.events.push({ ...ev });
+  });
+  S._autumn26Seeded = true;
+  return true;
+}
+if (ensureAutumn26Events()) dataChanged = true;
+
 // Seeds are auto-derived on every device — persist locally WITHOUT marking
 // the state dirty for sync (see saveLocal comment).
 if (dataChanged) saveLocal();
@@ -4764,6 +4789,7 @@ function adoptState(data) {
     ensureCountdowns();
     ensureMufcFixtures();
     ensureRecoveredEvents();
+    ensureAutumn26Events();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
     render();
   } finally {
