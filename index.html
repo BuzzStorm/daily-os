@@ -4010,7 +4010,7 @@ function sdTaskRow(t, zone, opts = {}) {
     ? `<span class="t-rm" title="Stop carrying" onclick="event.stopPropagation();dismissCarry('${home}','${t.id}')">&times;</span>`
     : type === 'c' ? (t._template ? '' : `<span class="t-rm" onclick="event.stopPropagation();rmCustom('${zone}','${t.id}')">&times;</span>`)
     : type === 'w' ? `<span class="t-rm" onclick="event.stopPropagation();rmWk('${t.id}')">&times;</span>`
-    : `<span class="t-rm" onclick="event.stopPropagation();rmRecurring('${t.id}')">&times;</span>`;
+    : `<span class="t-rm" onclick="event.stopPropagation();rmRecurringMenu('${t.id}',this)">&times;</span>`;
   const moveBtn = t._template ? '' : `<span class="t-move" title="Move to&hellip;" onclick="event.stopPropagation();moveMenu('${type}','${t.id}','${zone}','${home}',this)">&#8644;</span>`;
   const dragAttrs = (opts.carry || t._template) ? '' :
     `draggable="true" ondragstart="dragTask(event,'${zone}','${type}','${t.id}')" ondragover="dragOverRow(event)" ondragleave="dragLeaveRow(event)" ondrop="dropOnRow(event,'${zone}','${t.id}')"`;
@@ -4093,6 +4093,59 @@ function shortDayCapacityHtml(day) {
   // "Full day · ~8h available" banner removed — it stated the obvious and added
   // top-of-day clutter. Only the short-day pickup reminder earns its place.
   return '';
+}
+
+// A repeating task is one row PER WEEKDAY, so x needs to ask which the user
+// means. Gym is special: its rows are rebuilt from S.gymDays, so removing it
+// has to go through the picker state, not just S.recurring.
+function recurrenceSiblings(target) {
+  if (!target) return [];
+  if (String(target.id).startsWith('rec_gym_')) {
+    return S.recurring.filter(r => String(r.id).startsWith('rec_gym_'));
+  }
+  return S.recurring.filter(r => r.text === target.text);
+}
+
+function rmRecurringMenu(id, el) {
+  closeMoveMenu();
+  const target = S.recurring.find(r => r.id === id);
+  if (!target) return;
+  const siblings = recurrenceSiblings(target);
+  // Only one day left? Nothing to disambiguate — just remove it.
+  if (siblings.length <= 1) { rmRecurring(id); return; }
+
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const dayName = DAYS[target.dayOfWeek] || 'this day';
+  const picker = document.createElement('div');
+  picker.id = 'task-move-picker';
+  picker.className = 'sd-menu';
+  const rect = el.getBoundingClientRect();
+  picker.style.top = (rect.bottom + 4) + 'px';
+  picker.style.right = (window.innerWidth - rect.right) + 'px';
+  picker.innerHTML =
+    `<div class="sd-menu-item" onclick="rmRecurring('${id}')">Just ${dayName}s</div>` +
+    `<div class="sd-menu-item" onclick="rmRecurringAll('${id}')">All ${siblings.length} days</div>`;
+  document.body.appendChild(picker);
+
+  setTimeout(() => {
+    const close = (e) => {
+      if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', close); }
+    };
+    document.addEventListener('click', close);
+  }, 10);
+}
+
+function rmRecurringAll(id) {
+  closeMoveMenu();
+  const target = S.recurring.find(r => r.id === id);
+  if (!target) return;
+  if (String(target.id).startsWith('rec_gym_')) {
+    S.gymDays = [];
+    syncGymDays();
+  } else {
+    S.recurring = S.recurring.filter(r => r.text !== target.text);
+  }
+  save(); render();
 }
 
 function rmRecurring(id) {
