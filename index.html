@@ -2297,6 +2297,8 @@ if (!S.recurring) S.recurring = [];
 if (!S.order) S.order = {};
 if (!S.skips) S.skips = {};
 if (!S.carryDismissed) S.carryDismissed = {};
+if (!S.carryTicked) S.carryTicked = {}; // { taskId: 'YYYY-MM-DD' } — day a carry row was ticked (stays visible that day)
+if (!S.deletedSeeds) S.deletedSeeds = {}; // { eventText: true } — seeded events the user deleted; seeders must not re-add
 // pinnedCountdowns: [{ eventId, pinnedAt (YYYY-MM-DD) }] — events shown as countdown hero cards
 // recurring: [{ id, text, cat, dur, dayOfWeek (0=Sun,6=Sat), notes }]
 // Gym days — configurable, stored in state
@@ -2465,6 +2467,10 @@ function importData(event) {
       }
       if (!confirm('This will replace ALL your current data. Are you sure?')) return;
       S = migrateState(imported);
+      // Additive fields aren't part of migrateState — guard them so an older
+      // backup can't leave rmEvent/toggle writing to undefined.
+      if (!S.deletedSeeds) S.deletedSeeds = {};
+      if (!S.carryTicked) S.carryTicked = {};
       save();
       render();
       showPa('Data imported successfully from backup.');
@@ -2503,6 +2509,8 @@ function uid() { return Date.now().toString(36)+Math.random().toString(36).subst
 
 // ── ENSURE EVENTS EXIST (additive) ──
 function ensureEvent(match, eventData) {
+  // User deleted this seeded event — never re-add it.
+  if (S.deletedSeeds[match]) return false;
   const exists = S.events.some(e => e.text === match);
   if (!exists) {
     S.events.push({ id: uid(), ...eventData });
@@ -2697,7 +2705,7 @@ async function refreshMufcFixtures() {
             ev.time = f.time;
             changed = true;
           }
-        } else {
+        } else if (!S.deletedSeeds[f.text]) {
           if (!ensureEvent(f.text, { text:f.text, date:f.date, repeat:'none', mufc:true, time:f.time, quiet:true })) {
             // ensureEvent dedupes by text, so a SECOND fixture sharing a text
             // (e.g. added moments ago in this loop) must be pushed directly
@@ -2801,6 +2809,7 @@ function ensureRecoveredEvents() {
     { id:'mr9o37v8l3fmr', text:'Steph Wedding',       date:'2026-07-20', repeat:'none', time:'13:30', reminder:null },
     { id:'mr9o43l6po9ri', text:"Connie's Party",      date:'2026-07-25', repeat:'none', time:'11:30', reminder:null },
   ].forEach(ev => {
+    if (S.deletedSeeds[ev.text]) return; // user deleted it — stays deleted
     if (!S.events.some(e => e.id === ev.id)) { S.events.push({ ...ev }); changed = true; }
   });
   return changed;
@@ -2873,7 +2882,10 @@ function getCarryTasks() {
     const dk = toDateStr(d);
     const dismissed = (S.carryDismissed || {})[dk] || {};
     for (const t of ((S.custom[dk] || {}).list) || []) {
-      if (isDone(t.id, dk) || dismissed[t.id]) continue;
+      if (dismissed[t.id]) continue;
+      // Ticked TODAY stays visible (struck through) until the day rolls over;
+      // ticked on an earlier day (or on its own home day) stays hidden.
+      if (isDone(t.id, dk) && (S.carryTicked || {})[t.id] !== today()) continue;
       out.push({ ...t, _type: 'c', _home: dk });
     }
   }
@@ -2896,7 +2908,9 @@ function getParkingCarries() {
     if (dk >= tk) continue;
     const dismissed = (S.carryDismissed || {})[dk] || {};
     for (const t of (S.custom[dk].parking) || []) {
-      if (isDone(t.id, dk) || dismissed[t.id] || seen.has(t.id)) continue;
+      if (dismissed[t.id] || seen.has(t.id)) continue;
+      // Same visibility rule as getCarryTasks: ticked today stays visible.
+      if (isDone(t.id, dk) && (S.carryTicked || {})[t.id] !== today()) continue;
       seen.add(t.id);
       out.push({ ...t, _type: 'c', _home: dk });
     }
@@ -2969,6 +2983,13 @@ function toggle(tid, day) {
   if (!S.done[dk]) S.done[dk] = {};
   S.done[dk][tid] = !S.done[dk][tid];
   const nowDone = S.done[dk][tid];
+  // Carry rows are exactly the case where a home day differing from the viewed
+  // day is passed in. Record the day they were ticked so they stay visible
+  // (struck through) until the day rolls over.
+  if (day && day !== viewDay) {
+    if (nowDone) S.carryTicked[tid] = viewDay;
+    else delete S.carryTicked[tid];
+  }
   checkStreak();
   save(); render();
   if (nowDone) {
@@ -3447,6 +3468,12 @@ function addEvent() {
 }
 
 function rmEvent(id) {
+  // Record the deleted text so seeders (ensureEvent & friends) never re-add
+  // it. Recording EVERY deletion (not just seeds) is safe: ensureEvent is
+  // only ever called by seeders, and the sidebar event form pushes directly,
+  // so a user re-adding the same title later is unaffected.
+  const ev = S.events.find(e => e.id === id);
+  if (ev) S.deletedSeeds[ev.text] = true;
   S.events = S.events.filter(e=>e.id!==id);
   save(); render();
 }
@@ -3893,7 +3920,9 @@ function renderMain() {
   if (viewDay === today()) {
     const tasks = listTasks(viewDay);
     const carries = getCarryTasks();
-    const open = tasks.filter(t => !isDone(t.id, viewDay)).length + carries.length;
+    // Carries can now be done-but-still-shown (ticked today), so count only open ones.
+    const open = tasks.filter(t => !isDone(t.id, viewDay)).length
+               + carries.filter(t => !isDone(t.id, t._home)).length;
     if (tasks.length + carries.length > 0) {
       htm += `<div class="sd-nudge">&#128172; ${open > 0
         ? `${open} to go. Tick them off, then you're done for the day.`
@@ -4067,6 +4096,16 @@ function shortDayCapacityHtml(day) {
 }
 
 function rmRecurring(id) {
+  // Gym rows are rebuilt from S.gymDays on every launch and sync pull, so
+  // filtering S.recurring alone gets undone. Remove the day from the source
+  // of truth instead and let syncGymDays() rebuild.
+  if (id.startsWith('rec_gym_')) {
+    const dow = parseInt(id.slice('rec_gym_'.length), 10);
+    S.gymDays = S.gymDays.filter(d => d !== dow);
+    syncGymDays();
+    save(); render();
+    return;
+  }
   S.recurring = S.recurring.filter(r => r.id !== id);
   save(); render();
 }
@@ -4605,6 +4644,7 @@ Object.keys(S.custom).forEach(k=>{ if(new Date(k)<cut) delete S.custom[k]; });
 Object.keys(S.order).forEach(k=>{ if(new Date(k)<cut) delete S.order[k]; });
 Object.keys(S.skips).forEach(k=>{ if(new Date(k)<cut) delete S.skips[k]; });
 Object.keys(S.carryDismissed).forEach(k=>{ if(new Date(k)<cut) delete S.carryDismissed[k]; });
+Object.keys(S.carryTicked).forEach(k=>{ if(new Date(S.carryTicked[k])<cut) delete S.carryTicked[k]; });
 S.daysOff = S.daysOff.filter(d => new Date(d) >= cut);
 // saveLocal, NOT save(): this purge runs on EVERY launch on every device.
 // As save() it marked every device dirty at every open, so cloudPull's
@@ -4782,6 +4822,8 @@ function adoptState(data) {
     if (!S.order) S.order = {};
     if (!S.skips) S.skips = {};
     if (!S.carryDismissed) S.carryDismissed = {};
+    if (!S.carryTicked) S.carryTicked = {};
+    if (!S.deletedSeeds) S.deletedSeeds = {};
     if (!S.gymDays) S.gymDays = [1, 2, 4];
     syncGymDays();
     // Re-apply countdown seeds/pins so a remote state saved before they existed
