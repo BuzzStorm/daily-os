@@ -1,0 +1,300 @@
+<title>DailyOS Concept</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f6f8; --surface: #ffffff; --surface-2: #f0f1f5; --line: #e4e6ee;
+    --text: #1a1c26; --muted: #6b7186; --faint: #a3a8ba;
+    --accent: #b8862e; --accent-soft: rgba(184,134,46,.12);
+    --done: #2f8a5e; --done-soft: rgba(47,138,94,.12);
+    --carry: #b9634a; --carry-soft: rgba(185,99,74,.12);
+    --c-liquidbiz: #2f9c8b; --c-privatelabel: #7a6ae0; --c-barkspa: #d06a9a; --c-life: #5e9a5b; --c-admin: #6f7d9e;
+    --shadow: 0 1px 2px rgba(20,22,40,.06), 0 8px 24px -12px rgba(20,22,40,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12141b; --surface: #181b24; --surface-2: #1e222d; --line: #262a36;
+      --text: #e9ebf1; --muted: #8a90a3; --faint: #5c6276;
+      --accent: #e4b45a; --accent-soft: rgba(228,180,90,.14);
+      --done: #6fb08d; --done-soft: rgba(111,176,141,.14);
+      --carry: #d9846f; --carry-soft: rgba(217,132,111,.14);
+      --c-liquidbiz: #4fb3a3; --c-privatelabel: #9b8cf2; --c-barkspa: #e08fb6; --c-life: #7cb37a; --c-admin: #8c98b8;
+      --shadow: 0 1px 0 rgba(0,0,0,.25), 0 12px 32px -16px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12141b; --surface: #181b24; --surface-2: #1e222d; --line: #262a36;
+    --text: #e9ebf1; --muted: #8a90a3; --faint: #5c6276;
+    --accent: #e4b45a; --accent-soft: rgba(228,180,90,.14);
+    --done: #6fb08d; --done-soft: rgba(111,176,141,.14);
+    --carry: #d9846f; --carry-soft: rgba(217,132,111,.14);
+    --c-liquidbiz: #4fb3a3; --c-privatelabel: #9b8cf2; --c-barkspa: #e08fb6; --c-life: #7cb37a; --c-admin: #8c98b8;
+    --shadow: 0 1px 0 rgba(0,0,0,.25), 0 12px 32px -16px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:focus-visible, input:focus-visible, .tick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  .shell { max-width: 1080px; margin: 0 auto; padding: 28px 32px 80px; }
+
+  /* Top bar: date, week, utilities. Slim. */
+  .top { display: flex; align-items: center; gap: 24px; margin-bottom: 40px; }
+  .today-label { font-size: 15px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
+  .today-label span { color: var(--muted); font-weight: 500; }
+  .week { display: flex; gap: 4px; margin-left: 4px; }
+  .day { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; position: relative; color: var(--muted); font-weight: 500; font-size: 13px; }
+  .day:hover { background: var(--surface-2); }
+  .day.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .day .dot { position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--faint); }
+  .day.active .dot { background: var(--accent); }
+  .utils { margin-left: auto; display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 13px; }
+  .utils a, .utils button { color: var(--muted); text-decoration: none; }
+  .utils a:hover, .utils button:hover { color: var(--text); }
+  .theme { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+  .theme button { padding: 3px 10px; border-radius: 999px; font-size: 12px; }
+  .theme button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+
+  /* Two columns: the day, and quiet context. */
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 56px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; gap: 40px; } .top { flex-wrap: wrap; gap: 14px 20px; } .utils { margin-left: 0; } }
+
+  /* NOW — the one answer */
+  .now { margin-bottom: 36px; }
+  .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .now h1 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; text-wrap: balance; }
+  .now h1 .soft { color: var(--muted); font-weight: 500; }
+  .now .then { margin-top: 10px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .now .then .t { color: var(--faint); margin-right: 6px; }
+  .now .then .past { text-decoration: line-through; color: var(--faint); }
+
+  /* TODAY list */
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; }
+  .sec-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  .sec-head .count { color: var(--muted); font-size: 13px; }
+  .progress { height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; margin-bottom: 14px; }
+  .progress i { display: block; height: 100%; background: var(--done); width: 0; transition: width .4s ease; }
+
+  .list { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row .title { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; letter-spacing: -.005em; }
+  .row .meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .cat { display: inline-flex; align-items: center; gap: 6px; }
+  .cat::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--faint)); }
+  .dur { color: var(--faint); }
+  .rep { color: var(--faint); font-size: 13px; }
+  .chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; }
+  .chip.carry { color: var(--carry); background: var(--carry-soft); }
+  .chip.daily { color: var(--accent); background: var(--accent-soft); }
+
+  .tick { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--faint); flex: 0 0 auto; display: grid; place-items: center; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+  .tick:hover { border-color: var(--accent); }
+  .tick svg { width: 12px; height: 12px; opacity: 0; transform: scale(.6); transition: .15s ease; }
+  .row.done .tick { background: var(--done); border-color: var(--done); }
+  .row.done .tick svg { opacity: 1; transform: scale(1); }
+  @media (prefers-reduced-motion: no-preference) { .row.done .tick { animation: pop .25s ease; } @keyframes pop { 40% { transform: scale(1.25); } } }
+
+  /* Done group: still at the top (the pile is the reward) but visually receded */
+  .row.done { padding: 8px 16px; background: var(--surface-2); }
+  .row.done .title { font-size: 13px; font-weight: 400; color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+  .row.done .meta { opacity: .55; }
+  .row.pin { background: var(--accent-soft); }
+  .row.pin.done { background: var(--surface-2); }
+
+  .add { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); color: var(--faint); }
+  .add input { flex: 1; background: none; border: 0; color: var(--text); font: inherit; font-size: 14px; }
+  .add input::placeholder { color: var(--faint); }
+
+  .parking { margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+  .parking b { font-weight: 600; color: var(--text); }
+  .parking .n { color: var(--faint); }
+
+  /* Right rail */
+  .rail { display: flex; flex-direction: column; gap: 34px; }
+  .rail h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+  .count { display: flex; align-items: baseline; gap: 10px; }
+  .count .n { font-size: 30px; font-weight: 600; letter-spacing: -.03em; line-height: 1; }
+  .count .l { font-size: 13px; color: var(--muted); }
+  .count .l b { color: var(--text); font-weight: 600; }
+  .count .l small { display: block; color: var(--faint); margin-top: 2px; }
+
+  .up { display: flex; flex-direction: column; gap: 14px; }
+  .up .d { display: grid; grid-template-columns: 56px 1fr; gap: 6px 12px; }
+  .up .dh { color: var(--muted); font-size: 12px; font-weight: 600; padding-top: 2px; }
+  .up .dh.today { color: var(--accent); }
+  .up .ev { display: flex; gap: 10px; align-items: baseline; font-size: 13px; grid-column: 2; }
+  .up .ev .t { color: var(--faint); font-size: 11.5px; min-width: 38px; }
+  .up .ev .x { color: var(--text); }
+  .up .ev .x.past { color: var(--faint); text-decoration: line-through; }
+  .up .ev .bd { font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 1px 5px; border-radius: 4px; color: #d64a4a; background: rgba(214,74,74,.12); }
+
+  .note { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--faint); font-size: 12px; max-width: 64ch; }
+</style>
+
+<div class="shell">
+  <div class="top">
+    <div class="today-label">Tuesday <span>1 September</span></div>
+    <div class="week" id="week"></div>
+    <div class="utils">
+      <span class="mono" id="stat"></span>
+      <a href="https://book.squareup.com/appointments/nwad0qj8ufr98p/location/LP6ABYFXRWNDT/availability" target="_blank" rel="noopener">Book haircut</a>
+      <button type="button">Day off</button>
+      <div class="theme" role="group" aria-label="Theme">
+        <button type="button" data-t="dark" aria-pressed="true">Dark</button>
+        <button type="button" data-t="light" aria-pressed="false">Light</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <main>
+      <section class="now">
+        <div class="eyebrow">Now</div>
+        <h1 id="now-h"></h1>
+        <div class="then" id="now-then"></div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>Today</h2><span class="count" id="count"></span></div>
+        <div class="progress"><i id="bar"></i></div>
+        <div class="list" id="list"></div>
+        <div class="parking"><b>Parking lot</b><span class="n">nothing parked</span></div>
+      </section>
+    </main>
+
+    <aside class="rail">
+      <div>
+        <h3>Counting down</h3>
+        <div class="count"><span class="n mono">76</span><span class="l"><b>Baby due</b><small>Mon 16 Nov · 11 weeks</small></span></div>
+      </div>
+      <div>
+        <h3>Coming up</h3>
+        <div class="up" id="up"></div>
+      </div>
+    </aside>
+  </div>
+
+  <p class="note">Concept only — built from your real state for Tue 1 Sept. Ticks work here so you can feel the loop, but nothing saves. The live app is untouched.</p>
+</div>
+
+<script>
+  document.documentElement.setAttribute('data-theme', 'dark');
+  const CATS = { liquidbiz: 'Liquid Biz', privatelabel: 'Private Label', barkspa: 'Bark Spa', life: 'Life', admin: 'Admin' };
+  const state = {
+    tasks: [
+      { id: 'nn', text: 'Creatine + protein + multivit', pin: true, done: false },
+      { id: 'c1', text: 'Motorway quote / fix up car', cat: 'life', dur: 30, carry: 'Sun', done: false },
+      { id: 't1', text: 'Pack & post orders', cat: 'liquidbiz', dur: 30, rep: true, done: true },
+      { id: 't2', text: 'Shower, shave', cat: 'life', dur: 30, done: true },
+      { id: 't3', text: 'Account recovery', cat: 'life', dur: 30, done: true },
+      { id: 't4', text: 'MUFC fixtures', cat: 'life', dur: 30, done: true },
+      { id: 't5', text: 'Book hair next', cat: 'life', dur: 30, done: true },
+      { id: 't6', text: 'Stag pack', cat: 'liquidbiz', dur: 30, done: true },
+      { id: 't7', text: 'Build inventory export', cat: 'life', dur: 30, done: true },
+    ],
+    events: [
+      { d: '2026-09-01', t: null,    x: 'Service + MOT with Roy', sub: 'morning' },
+      { d: '2026-09-01', t: '11:00', x: 'Haircut' },
+      { d: '2026-09-02', t: '18:30', x: 'Amy yoga class' },
+      { d: '2026-09-03', t: '12:00', x: 'ASDA' },
+      { d: '2026-09-04', t: null,    x: "Benson's stag", sub: 'Marbella' },
+      { d: '2026-09-04', t: '09:00', x: 'Amy resit' },
+      { d: '2026-09-04', t: '14:00', x: 'Daisy pickup' },
+      { d: '2026-09-04', t: '18:30', x: 'Amy yoga class' },
+      { d: '2026-09-06', t: '14:00', x: 'Everton vs Man Utd (A)', mufc: true },
+      { d: '2026-09-07', t: null,    x: 'Cancel Tails' },
+      { d: '2026-09-07', t: '09:00', x: 'Daisy back to pre-school' },
+      { d: '2026-09-10', t: '20:00', x: 'Man Utd vs Sabah FK (H)', mufc: true, sub: 'Champions League' },
+      { d: '2026-09-12', t: '11:00', x: 'Molly & Ollie christening' },
+      { d: '2026-09-12', t: '12:30', x: 'Birthing event', sub: 'until 16:30' },
+      { d: '2026-09-13', t: null,    x: 'In Manchester' },
+      { d: '2026-09-13', t: '16:30', x: 'Man Utd vs Man City (H)', mufc: true },
+    ],
+  };
+  const TODAY = '2026-09-01';
+  const nowMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
+  const toMin = t => t ? (+t.slice(0, 2)) * 60 + (+t.slice(3)) : -1;
+  const dayName = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+  const check = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
+  function render() {
+    const done = state.tasks.filter(t => t.done), open = state.tasks.filter(t => !t.done);
+    const real = state.tasks.filter(t => !t.pin);
+    const rd = real.filter(t => t.done).length;
+
+    // NOW: next open item wins; if nothing is open, say so plainly.
+    const h = document.getElementById('now-h');
+    const firstOpen = open.find(t => !t.pin) || open[0];
+    if (firstOpen) {
+      h.innerHTML = firstOpen.text + (firstOpen.carry ? ' <span class="soft">— carried from ' + firstOpen.carry + '</span>' : '');
+    } else {
+      h.innerHTML = 'Clear day. <span class="soft">' + rd + ' done, nothing waiting.</span>';
+    }
+    const todays = state.events.filter(e => e.d === TODAY);
+    document.getElementById('now-then').innerHTML = todays.map(e => {
+      const past = e.t && toMin(e.t) < nowMin();
+      return '<span class="' + (past ? 'past' : '') + '"><span class="t mono">' + (e.t || e.sub || 'all day') + '</span>' + e.x + '</span>';
+    }).join('');
+
+    document.getElementById('count').textContent = rd + ' of ' + real.length + ' done';
+    document.getElementById('bar').style.width = (real.length ? rd / real.length * 100 : 0) + '%';
+    document.getElementById('stat').textContent = rd + ' done';
+
+    const list = document.getElementById('list');
+    const row = t => `
+      <div class="row ${t.done ? 'done' : ''} ${t.pin ? 'pin' : ''}" data-id="${t.id}">
+        <button class="tick" type="button" aria-label="${t.done ? 'Undo' : 'Done'}">${check}</button>
+        <div class="title">${t.text}</div>
+        <div class="meta">
+          ${t.pin ? '<span class="chip daily">Daily</span>' : ''}
+          ${t.carry ? '<span class="chip carry">from ' + t.carry + '</span>' : ''}
+          ${t.cat ? '<span class="cat" style="--dot:var(--c-' + t.cat + ')">' + CATS[t.cat] + '</span>' : ''}
+          ${t.dur ? '<span class="dur mono">' + t.dur + 'm</span>' : ''}
+          ${t.rep ? '<span class="rep" title="Repeats">&#8635;</span>' : ''}
+        </div>
+      </div>`;
+    list.innerHTML = [...done, ...open].map(row).join('') +
+      '<div class="add"><span>+</span><input type="text" placeholder="Add to today — try &ldquo;Call mum tomorrow 10 mins&rdquo;"></div>';
+
+    // Coming up, grouped by day
+    const groups = {};
+    state.events.forEach(e => (groups[e.d] = groups[e.d] || []).push(e));
+    document.getElementById('up').innerHTML = Object.keys(groups).sort().map(d => `
+      <div class="d">
+        <div class="dh ${d === TODAY ? 'today' : ''}">${d === TODAY ? 'Today' : dayName(d)}</div>
+        ${groups[d].map(e => {
+          const past = d === TODAY && e.t && toMin(e.t) < nowMin();
+          return `<div class="ev"><span class="t mono">${e.t || ''}</span><span class="x ${past ? 'past' : ''}">${e.x}${e.sub ? ' <span style="color:var(--faint)">· ' + e.sub + '</span>' : ''}</span>${e.mufc ? '<span class="bd">MUFC</span>' : ''}</div>`;
+        }).join('')}
+      </div>`).join('');
+  }
+
+  // Week strip (Mon–Sun), dots on days with events
+  (function () {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const has = new Set(state.events.map(e => e.d));
+    const mon = new Date('2026-08-31T12:00:00');
+    document.getElementById('week').innerHTML = days.map((n, i) => {
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      const k = d.toISOString().slice(0, 10);
+      return `<button class="day ${k === TODAY ? 'active' : ''}" type="button">${k === TODAY ? 'Today' : n[0]}${has.has(k) && k !== TODAY ? '<i class="dot"></i>' : ''}</button>`;
+    }).join('');
+  })();
+
+  document.getElementById('list').addEventListener('click', e => {
+    const b = e.target.closest('.tick'); if (!b) return;
+    const id = b.closest('.row').dataset.id;
+    const t = state.tasks.find(t => t.id === id); t.done = !t.done; render();
+  });
+  document.querySelectorAll('.theme button').forEach(b => b.addEventListener('click', () => {
+    document.documentElement.setAttribute('data-theme', b.dataset.t);
+    document.querySelectorAll('.theme button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  }));
+  render();
+</script>
