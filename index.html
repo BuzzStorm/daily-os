@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#12141b">
+<script>
+  // Theme is a per-device preference (localStorage, not synced). Applied before first
+  // paint so there is no flash; dark is the default when nothing is stored.
+  (function(){try{var t=localStorage.getItem('dailyOS_theme');if(t==='light'){document.documentElement.dataset.theme='light';var m=document.querySelector('meta[name="theme-color"]');if(m)m.content='#f6f6f8';}}catch(e){}})();
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -20,7 +25,9 @@
   :root {
     /* Palette: the approved concept's dark theme (feature-research/redesign/concept.html).
        - --text/--text2 for anything a user must read (task text, names, inputs).
-       - --muted is SECONDARY info only (≈5.5:1 on --bg, AA). --faint is tertiary. */
+       - --muted is SECONDARY info only (≈5.5:1 on --bg, AA). --faint is tertiary.
+       Dark is the default (no data-theme stamp); the light block below redefines
+       ONLY tokens. Every colour in the app must come from here. */
     --bg: #12141b;
     --s1: #181b24;
     --s2: #1e222d;
@@ -36,7 +43,19 @@
     --faint: #5c6276;
     --done: #6fb08d;
     --done-bg: rgba(111,176,141,.14);
+    --carry: #d9846f;
+    --carry-bg: rgba(217,132,111,.14);
+    --danger: #e06c75;
+    --danger-bg: rgba(224,108,117,.12);
+    --mufc: #e0433a;
+    --mufc-bg: rgba(218,41,28,.14);
+    --on-accent: #0c0d11;      /* text on a solid --accent fill */
+    --on-done: #ffffff;        /* tick mark / text on a solid --done fill */
+    --overlay: rgba(0,0,0,.6);  /* modal backdrop */
+    --hairline: rgba(255,255,255,.06);
+    --hover: rgba(255,255,255,.04);
     --shadow: 0 1px 0 rgba(0,0,0,.25), 0 12px 32px -16px rgba(0,0,0,.6);
+    --shadow-pop: 0 8px 24px rgba(0,0,0,.4);   /* menus, calendar, search results */
 
     /* Category colors — concept palette */
     --c-liquidbiz: #4fb3a3;
@@ -49,7 +68,7 @@
     --c-parking: #9c8aa8;
 
     /* Two-accent semantic system (documented, per design-consistency lock):
-       gold = work / action / focus;  teal = personal / calendar / life. */
+       gold = work / action / focus;  teal = personal / calendar / life (holiday badge). */
     --accent2: #6ea8b8;
     --accent2-bg: rgba(110,168,184,0.10);
     --accent2-border: rgba(110,168,184,0.38);
@@ -62,6 +81,51 @@
     --r-xs: 4px;
   }
 
+  /* Light theme — concept.html's light values mapped onto the app's token names.
+     Opt-in via the Dark | Light pill (per-device, localStorage 'dailyOS_theme'). */
+  :root[data-theme="light"] {
+    --bg: #f6f6f8;
+    --s1: #ffffff;
+    --s2: #f0f1f5;
+    --s3: #e4e6ee;
+    --border: #e4e6ee;
+    --border2: #d5d8e3;
+    --accent: #b8862e;
+    --accent-bg: rgba(184,134,46,.12);
+    --accent-border: rgba(184,134,46,.35);
+    --text: #1a1c26;
+    --text2: #2a2d3a;
+    --muted: #61677c;     /* 5.2:1 on --bg, 5.6:1 on --s1 (concept's #6b7186 was 4.49:1) */
+    --faint: #8a90a4;     /* tertiary: times, durations (≈3:1, matches dark's --faint) */
+    --done: #2f8a5e;
+    --done-bg: rgba(47,138,94,.12);
+    --carry: #b9634a;
+    --carry-bg: rgba(185,99,74,.12);
+    --danger: #c8414b;
+    --danger-bg: rgba(200,65,75,.12);
+    --mufc: #c4241a;
+    --mufc-bg: rgba(196,36,26,.12);
+    --on-accent: #0c0d11;
+    --on-done: #ffffff;
+    --overlay: rgba(20,22,40,.45);
+    --hairline: rgba(20,22,40,.06);
+    --hover: rgba(20,22,40,.04);
+    --shadow: 0 1px 2px rgba(20,22,40,.06), 0 8px 24px -12px rgba(20,22,40,.12);
+    --shadow-pop: 0 8px 24px rgba(20,22,40,.14);
+    --c-liquidbiz: #2f9c8b;
+    --c-privatelabel: #7a6ae0;
+    --c-barkspa: #d06a9a;
+    --c-life: #5e9a5b;
+    --c-admin: #6f7d9e;
+    --c-break: #9a9fb5;
+    --c-evening: #6f7d9e;
+    --c-parking: #8a76a3;
+    --accent2: #3f8a9e;
+    --accent2-bg: rgba(63,138,158,.10);
+    --accent2-border: rgba(63,138,158,.38);
+  }
+  :root[data-theme="light"] .ae-date { color-scheme: light; }
+
   html, body {
     background: var(--bg);
     color: var(--text);
@@ -72,1470 +136,345 @@
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;     /* no horizontal page scrollbar */
   }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:focus-visible, input:focus-visible, .tck:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
   /* ── LAYOUT ──
-     The whole app is one centered, contained unit (work surface + sidebar
-     read as a cohort). Main fills its region edge-to-edge via padding rather
-     than floating in a narrow centered ribbon — kills the dead side-voids on
-     wide monitors. Outer whitespace on >1380px screens is balanced + intentional. */
-  .app {
-    display: flex;
-    min-height: 100vh;
-    max-width: 1280px;      /* contained, centered reading width — full-width made
-                               the work column too wide/sparse on big monitors.
-                               Balanced margins (not the old lopsided gap). */
-    margin: 0 auto;
-  }
-  .main {
-    flex: 1;
-    min-width: 0;
-    padding: 0 44px 80px;
-    overflow-y: auto;
-    height: 100vh;
-  }
-  .sidebar {
-    width: 372px;
-    min-width: 372px;
-    background: var(--s1);
-    border-left: 1px solid var(--border);
-    overflow-y: auto;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
+     One composed 1080px column; the document scrolls. Top bar (date · week ·
+     utilities), then a two-column grid: the day on the left, a quiet rail of
+     context on the right. */
+  .shell { max-width: 1080px; margin: 0 auto; padding: 0 32px 80px; }
 
-  /* ── HEADER ── */
-  .hdr {
-    padding: 28px 0 0;
-    position: sticky;
-    top: 0;
+  /* Top bar: date, week, utilities. Slim, sticky. */
+  .top {
+    display: flex; align-items: center; gap: 24px;
+    padding: 28px 0 14px; margin-bottom: 26px;
+    position: sticky; top: 0; z-index: 20;
     background: var(--bg);
-    z-index: 20;
   }
-  .greeting {
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--text);
-    letter-spacing: -.02em;
+  .today-label { position: relative; font-size: 15px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; cursor: pointer; }
+  .today-label span { color: var(--muted); font-weight: 500; }
+  .today-label .caret { font-size: 8px; margin-left: 4px; color: var(--muted); transition: color .12s; }
+  .today-label:hover .caret { color: var(--accent); }
+  .week { display: flex; gap: 4px; margin-left: 4px; }
+  .day {
+    min-width: 36px; height: 36px; padding: 0 6px;
+    border-radius: 8px; display: inline-grid; place-items: center; position: relative;
+    color: var(--muted); font-weight: 500; font-size: 13px; transition: all .12s;
   }
-  .date-line {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
-    margin-top: 4px;
+  .day:hover { background: var(--s2); color: var(--text2); }
+  .day.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  .day.has-tasks::after {
+    content: ''; position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: var(--faint);
   }
-  /* Header utility links (Today / Day off / Haircut) — quiet text, no chrome */
-  .hdr-link {
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
-    background: var(--s2);
-    border: none;
-    padding: 3px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    text-decoration: none;
-    transition: color .12s, background .12s;
+  .day.active.has-tasks::after { background: var(--accent); }
+  .utils { margin-left: auto; display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 13px; }
+  .utils > * { white-space: nowrap; flex-shrink: 0; }
+  .utils a, .utils button { color: var(--muted); text-decoration: none; white-space: nowrap; transition: color .12s; }
+  .utils a:hover, .utils button:hover { color: var(--text); }
+  .utils b { font-weight: 500; color: var(--text); }
+  .hdr-link.on { color: var(--danger); }
+  .hdr-link.on:hover { color: var(--danger); opacity: .85; }
+  .theme { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
+  .theme button { padding: 3px 10px; border-radius: 999px; font-size: 12px; }
+  .theme button[aria-pressed="true"] { background: var(--s2); color: var(--text); }
+  /* Sync status (click to open setup) */
+  .sync { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .sync:hover { color: var(--text); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border2); flex: none; }
+  .sync-dot.sync-ok { background: var(--done); }
+  .sync-dot.sync-pending { background: var(--accent); }
+  .sync-dot.sync-err { background: var(--danger); }
+  .sync-dot.sync-off { background: var(--border2); }
+  /* Icon buttons: search ⌕ and the ⋯ data menu */
+  .icon-btn {
+    position: relative; width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--r-chip); color: var(--muted); cursor: pointer; transition: all .15s;
   }
-  .hdr-link:hover { color: var(--text); background: var(--s3); }
-  .modal-eyebrow { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
-  .hdr-link.on { color: #d9846f; }
-  .hdr-link.on:hover { color: #e6a08d; }
-  .day-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 14px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--border);
+  .icon-btn:hover { background: var(--s2); color: var(--text); }
+  .icon-btn.active { background: var(--s3); color: var(--accent); }
+  #syncDot {
+    position: absolute; top: 2px; right: 2px;
+    width: 7px; height: 7px; border-radius: 50%;
+    pointer-events: none; background: var(--border2);
   }
-  .day-btn {
-    min-width: 36px;
-    height: 36px;
-    padding: 0 6px;
-    display: inline-grid;
-    place-items: center;
-    position: relative;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    border: none;
-    border-radius: 8px;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all .12s;
+  #syncDot.sync-ok { background: var(--done); }
+  #syncDot.sync-pending { background: var(--accent); }
+  #syncDot.sync-err { background: var(--danger); }
+  #syncDot.sync-off { background: var(--border2); }
+  /* Data dropdown (under ⋯) */
+  .data-menu {
+    position: absolute; top: 34px; right: 0;
+    background: var(--s2); border: 1px solid var(--border2); border-radius: var(--r-ctl);
+    padding: 4px; min-width: 150px; box-shadow: var(--shadow-pop); z-index: 60;
+    text-align: left; font-size: 13px;
   }
-  .day-btn:hover { color: var(--text2); background: var(--s2); }
-  .day-btn.active {
-    background: var(--accent-bg);
-    color: var(--accent);
-    font-weight: 600;
-  }
-  .day-btn.has-tasks::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    bottom: 5px;
-    transform: translateX(-50%);
-    width: 4px; height: 4px;
-    background: var(--faint);
-    border-radius: 50%;
-  }
-  .day-btn.active.has-tasks::after { background: var(--accent); }
-
-  /* ── FOCUS CARD ── */
-  .focus-card {
-    margin: 16px 0 14px;
-    padding: 20px 22px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    border-radius: var(--r-card);
-    box-shadow: var(--shadow);
-    position: relative;
-    overflow: hidden;
-  }
-  .focus-label {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--accent);
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .focus-pulse {
-    width: 6px; height: 6px;
-    background: var(--accent);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-  }
-  /* Date-context card (planning ahead / looking back) — quiet, no accent */
-  .focus-card.focus-ctx { border-left-color: var(--faint); }
-  .focus-card.focus-ctx .focus-label { color: var(--muted); }
-  .focus-card.focus-ctx .focus-pulse { background: var(--faint); animation: none; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(212,164,74,0.4); }
-    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(212,164,74,0); }
-  }
-  .focus-title {
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 4px;
-    letter-spacing: -.02em;
-    line-height: 1.15;
-  }
-  .focus-sub {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.45;
-  }
-  .focus-countdown {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--accent);
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .focus-countdown-bar {
-    flex: 1;
-    height: 3px;
-    background: rgba(212,164,74,0.15);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .focus-countdown-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    transition: width 1s linear;
-  }
-
-  /* Pinned countdown hero — one slim row per pin at every width
-     (the compact layout that used to live only in the ≤900px block). */
-  .cd-hero-row {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-width: 520px;
-    margin: 16px 0 8px;
-  }
-  .cd-hero {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    padding: 10px 14px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: var(--r-card);
-    box-shadow: var(--shadow);
-    position: relative;
-    overflow: hidden;
-  }
-  .cd-hero-label {
-    display: block;
-    order: 1;
-    flex: 1 1 auto;
-    min-width: 0;
-    margin-bottom: 0;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .cd-hero-loc {
-    color: var(--muted);
-    font-weight: 500;
-  }
-  .cd-hero-body {
-    order: 2;
-    flex: 0 0 auto;
-    display: flex;
-    align-items: baseline;
-    gap: 5px;
-  }
-  .cd-hero-num {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 1;
-    color: var(--accent);
-    font-variant-numeric: tabular-nums;
-  }
-  .cd-hero-unit {
-    font-size: 12px;
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--muted);
-  }
-  .cd-hero-foot {
-    order: 3;
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 0;
-    margin-left: auto;
-    font-size: 12px;
-    color: var(--accent);
-  }
-  .cd-hero-bar {
-    position: absolute;
-    left: 0; right: 0; bottom: 0;
-    height: 2px;
-    flex: none;
-    background: var(--accent-bg);
-    border-radius: 0;
-    overflow: hidden;
-  }
-  .cd-hero-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    transition: width 1s linear;
-  }
-  .cd-hero-date {
-    color: var(--muted);
+  .data-item {
+    display: block; width: 100%; padding: 7px 10px;
+    color: var(--text2); border-radius: 5px; cursor: pointer; transition: background .12s;
     white-space: nowrap;
   }
-  .cd-hero-unpin {
-    position: static;
-    order: 4;
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    min-height: 28px;
-    margin: -6px -8px -6px -4px;
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 18px;
-    line-height: 1;
-    opacity: 0.6;
-    transition: opacity .12s, color .12s;
-  }
-  .cd-hero-unpin:hover { opacity: 1; color: var(--accent); }
-  .ev-pin {
-    cursor: pointer;
-    opacity: 0.35;
-    transition: opacity .12s, transform .12s;
-    font-size: 11px;
-    line-height: 1;
-    margin-left: 2px;
-  }
-  .ev-pin:hover { opacity: 0.9; transform: scale(1.15); }
-  .ev-pin.active { opacity: 1; }
+  .data-item:hover { background: var(--s3); }
+  .data-item.danger { color: var(--danger); }
+  .data-item.danger:hover { background: var(--danger-bg); }
 
-  /* Today's Work — visually unified across AM/PM halves */
-  .block.work-zone {
-    border-color: rgba(106,184,145,0.32);
-    background: linear-gradient(135deg, rgba(106,184,145,0.05), rgba(106,184,145,0.01));
-  }
-  .block.work-zone .bk-title { font-weight: 700; }
-  .block.work-zone + .block:not(.work-zone) { margin-top: 14px; }
-  .block:not(.work-zone) + .block.work-zone { margin-top: 14px; }
-  .block.work-zone .bk-time { color: var(--c-liquidbiz); }
+  /* Search (hidden until ⌕) */
+  .search-wrap { max-height: 0; overflow: hidden; transition: max-height .2s ease, margin .2s ease; margin-bottom: 0; }
+  .search-wrap.open { max-height: 60px; overflow: visible; margin-bottom: 20px; }
+  .search-wrap .inner { position: relative; max-width: 480px; }
+  .search-wrap .qa-inp { padding-left: 32px; }
+  .search-wrap .ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
+
+  /* Two columns: the day, and quiet context. */
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 56px; align-items: start; }
+
+  /* ── NOW — the one answer ── */
+  .now { margin-bottom: 36px; }
+  .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .now h1 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; text-wrap: balance; }
+  .now h1 .soft { color: var(--muted); font-weight: 500; }
+  .now .then { margin-top: 10px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .now .then > span { cursor: pointer; }
+  .now .then > span.plain { cursor: default; }
+  .now .then .t { color: var(--faint); margin-right: 6px; font-size: 13px; }
+  .now .then .past { text-decoration: line-through; color: var(--faint); }
+  .now .then .bd { margin-left: 6px; }
 
   /* ── CAPACITY BANNER (short-day awareness) ── */
   .capacity-banner {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 12px 0 4px;
-    padding: 8px 14px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: var(--r-ctl);
-    font-size: 12.5px;
-    color: var(--text2);
+    display: flex; align-items: center; gap: 10px;
+    margin: 0 0 18px; padding: 8px 14px;
+    background: var(--s1); border: 1px solid var(--border); border-radius: var(--r-ctl);
+    font-size: 12.5px; color: var(--text2);
   }
-  .capacity-banner.short {
-    background: rgba(226,178,87,0.08);
-    border-color: rgba(226,178,87,0.28);
-  }
-  .capacity-banner.short .cap-dot {
-    background: var(--accent);
-    box-shadow: 0 0 0 0 rgba(226,178,87,0.4);
-    animation: pulse 2.4s infinite;
-  }
-  .capacity-banner.full .cap-dot {
-    background: var(--done);
-  }
-  .cap-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
+  .capacity-banner.short { background: var(--accent-bg); border-color: var(--accent-border); }
+  .capacity-banner.short .cap-dot { background: var(--accent); box-shadow: 0 0 0 0 var(--accent-border); animation: pulse 2.4s infinite; }
+  .capacity-banner.full .cap-dot { background: var(--done); }
+  .cap-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
   .cap-text b { font-weight: 600; color: var(--text); }
-
-  /* ── PARKING LOT ── */
-  .parking-block {
-    border-color: rgba(156,138,168,0.22);
-    background: linear-gradient(135deg, rgba(156,138,168,0.05), rgba(156,138,168,0.01));
-    margin-top: 16px;
-    opacity: 0.92;
-  }
-  .parking-block .bk-hd { cursor: default; }
-  .parking-block .bk-time {
-    color: var(--c-parking);
-    letter-spacing: 1.5px;
-    font-weight: 500;
-  }
-  .parking-tag {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0;
-    color: var(--muted);
-    background: var(--s3);
-    border: none;
-    padding: 2px 7px;
-    border-radius: 6px;
-    margin-left: 8px;
-    text-transform: lowercase;
-    vertical-align: middle;
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-border); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px transparent; }
   }
 
-  /* ── EVENING MODE ── */
-  .focus-card.focus-evening {
-    background: linear-gradient(135deg, rgba(138,143,184,0.12), rgba(138,143,184,0.03));
-    border-color: rgba(138,143,184,0.28);
-    border-left-color: var(--c-evening);
-  }
-  .focus-card.focus-evening::before {
-    background: linear-gradient(90deg, transparent, rgba(138,143,184,0.04));
-  }
-  .focus-card.focus-evening .focus-label { color: var(--c-evening); }
-  .focus-card.focus-evening .focus-pulse {
-    background: var(--c-evening);
-    animation: pulseEvening 2.4s infinite;
-  }
-  @keyframes pulseEvening {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(138,143,184,0.4); }
-    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(138,143,184,0); }
-  }
+  /* ── TODAY list ── */
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; }
+  .sec-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  .sec-head .count { color: var(--muted); font-size: 13px; }
+  .progress { height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 14px; }
+  .progress i { display: block; height: 100%; background: var(--done); width: 0; transition: width .4s ease; }
 
-  .evening-block {
-    border-color: rgba(138,143,184,0.22);
-    background: linear-gradient(135deg, rgba(138,143,184,0.05), rgba(138,143,184,0.01));
+  .list {
+    background: var(--s1); border: 1px solid var(--border); border-radius: var(--r-card);
+    box-shadow: var(--shadow); overflow: hidden;
   }
-  .evening-block .bk-hd { cursor: default; }
-  .evening-block .bk-time {
-    color: var(--c-evening);
-    letter-spacing: 1.5px;
-    font-weight: 500;
-  }
+  .list.drag-over { border-color: var(--accent); }
+  .sd-empty { padding: 12px 16px; font-size: 13px; color: var(--muted); }
 
-  .outstanding {
-    margin: 12px 0 10px;
-    padding: 12px 16px 4px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: var(--r-card);
-  }
-  .outstanding-hd {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-bottom: 8px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-  }
-  .outstanding-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted);
-  }
-  .outstanding-count {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    color: var(--muted);
-    padding: 1px 6px;
-    background: var(--s3);
-    border-radius: 3px;
-  }
-  .outstanding-sub {
-    font-size: 11px;
-    color: #888db0;
-    margin-left: auto;
-    font-style: italic;
-  }
-  .ot-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-    transition: background .12s;
-  }
-  .ot-row:last-child { border-bottom: none; }
-  .ot-row:hover { background: rgba(255,255,255,0.015); }
-  .ot-text {
-    flex: 1;
-    font-size: 13px;
-    color: var(--text2);
-    line-height: 1.4;
-    cursor: pointer;
-  }
-  .ot-text.done { text-decoration: line-through; color: var(--muted); }
-  .ot-time {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: 0.3px;
-    flex-shrink: 0;
-  }
-  .ot-cat {
-    width: 3px;
-    height: 18px;
-    border-radius: 2px;
-    flex-shrink: 0;
-    opacity: 0.55;
-  }
-
-  /* ── PAST SUMMARY ── */
-  .past-summary {
-    margin-bottom: 10px;
-    padding: 10px 14px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: var(--r-ctl);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-    transition: all .15s;
-    opacity: 0.6;
-  }
-  .past-summary:hover { opacity: 0.85; background: var(--s2); }
-  .past-summary-text {
-    font-size: 12px;
-    color: var(--muted);
-    flex: 1;
-  }
-  .past-summary-text strong { color: var(--text2); font-weight: 500; }
-  .past-summary-toggle {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted);
-  }
-
-  /* ── MISSED TASKS ── */
-  .missed-tasks {
-    margin-bottom: 10px;
-    padding: 10px 14px;
-    background: rgba(196, 128, 142, 0.06);
-    border: 1px solid rgba(196, 128, 142, 0.2);
-    border-radius: var(--r-ctl);
-  }
-  .missed-hd {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--c-life);
-    opacity: 0.85;
-  }
-  .missed-tasks .task {
-    padding: 5px 0;
-    border-bottom: 1px solid rgba(196, 128, 142, 0.08);
-  }
-  .missed-tasks .task:last-child { border-bottom: none; }
-  .missed-tasks .t-block-tag {
-    font-size: 11px;
-    color: var(--muted);
-    opacity: 0.6;
-    margin-left: auto;
-    white-space: nowrap;
-  }
-
-  /* ── PROGRESS ── */
-  .prog {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 16px 0 6px;
-  }
-  .prog-bar {
-    flex: 1;
-    height: 3px;
-    background: var(--s3);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .prog-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .prog-text {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    min-width: 32px;
-    text-align: right;
-  }
-  .prog-text strong { color: var(--accent); font-weight: 500; }
-
-  /* Non-negotiables strip on main view */
-  .nn-strip {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin: 2px 0 18px;       /* tucked tight under the focus hero */
-    padding: 0;
-    background: transparent;
-    border: none;
-  }
-  .nn-strip-label {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--muted);
-    white-space: nowrap;
-    margin: 0;
-  }
-  .nn-strip-items {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    flex: 1;
-  }
-  .nn-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 40px;
-    padding: 8px 14px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text);
-    cursor: pointer;
-    transition: all .15s;
-    user-select: none;
-  }
-  .nn-chip:hover { border-color: var(--border2); background: var(--s2); }
-  .nn-chip.done {
-    background: var(--done-bg);
-    border-color: transparent;
-    color: var(--done);
-    text-decoration: line-through;
-    text-decoration-color: var(--faint);
-  }
-  .nn-chip-ck {
-    width: 16px;
-    height: 16px;
-    border: 1.5px solid var(--faint);
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    flex-shrink: 0;
-    color: white;
-  }
-  .nn-chip.done .nn-chip-ck {
-    background: var(--done);
-    border-color: var(--done);
-  }
-  .prog-detail {
-    display: flex;
-    gap: 14px;
-    margin-bottom: 10px;
-  }
-  .pd {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .pd b { font-family: 'JetBrains Mono', monospace; color: var(--text); font-weight: 500; }
-
-  /* ── UPCOMING EVENTS BANNER ── */
-  .event-banner {
-    margin: 8px 0;
-    padding: 10px 14px;
-    background: var(--accent-bg);
-    border: 1px solid var(--accent-border);
-    border-radius: var(--r-ctl);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 12px;
-    color: var(--accent);
-  }
-  .event-banner .eb-icon {
-    width: 28px; height: 28px;
-    background: rgba(212,164,74,0.15);
-    border-radius: var(--r-chip);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    flex-shrink: 0;
-  }
-  .event-banner .eb-text { flex: 1; line-height: 1.4; }
-  .event-banner .eb-text strong { font-weight: 600; }
-  .event-banner .eb-days {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    opacity: 0.7;
-  }
-
-  /* ── TIME BLOCKS ── */
-  .blocks { margin-top: 8px; }
-
-  .block {
-    margin-bottom: 6px;
-    border-radius: var(--r-card);
-    border: 1px solid var(--border);
-    background: transparent;            /* lightened: was filled --s1 (card-in-card weight) */
-    overflow: hidden;
-    transition: background .18s, border-color .18s, box-shadow .18s;
-  }
-  .block:hover { background: rgba(255,255,255,0.022); }
-  .block.expanded { background: rgba(255,255,255,0.018); }
-  /* The current block is the single elevated card — it carries the gold fill so
-     it reads as the focus; everything else stays quiet structure. No outer glow
-     (inner highlight instead) per the no-neon rule. */
-  .block.is-now {
-    border-color: var(--accent-border);
-    background: linear-gradient(135deg, var(--accent-bg), rgba(226,178,87,0.02));
-    box-shadow: inset 0 1px 0 rgba(226,178,87,0.18);
-  }
-  .block.is-past { opacity: 0.6; }
-  .block.is-past:hover { opacity: 0.75; }
-  .block.is-break {
-    background: transparent;
-    border: 1px dashed var(--border);
-    opacity: 0.5;
-    margin-bottom: 6px;
-  }
-  .block.is-break .bk-hd { padding: 8px 16px; }
-  .block.is-break .bk-sub { display: none; }
-
-  /* Task just added highlight */
-  .block.just-added {
-    animation: blockHighlight 1.5s ease;
-  }
-  @keyframes blockHighlight {
-    0% { box-shadow: 0 0 0 2px var(--accent); }
-    100% { box-shadow: none; }
-  }
-
-  .bk-hd {
-    display: flex;
-    align-items: center;
-    padding: 14px 16px;
-    gap: 12px;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .bk-cat {
-    width: 5px;
-    border-radius: 3px;
-    align-self: stretch;
-    flex-shrink: 0;
-  }
-
-  .bk-time {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    min-width: 85px;
-    flex-shrink: 0;
-  }
-  .block.is-now .bk-time { color: var(--accent); font-weight: 500; }
-
-  .bk-info { flex: 1; min-width: 0; }
-  .bk-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .now-tag {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    padding: 2px 7px;
-    background: var(--accent);
-    color: #0c0d11;
-    border-radius: 3px;
-    font-weight: 600;
-  }
-  .bk-sub {
-    font-size: 12.5px;
-    color: var(--muted);
-    margin-top: 3px;
-    line-height: 1.45;
-  }
-  .block:not(.expanded):not(.is-now) .bk-sub { display: none; }
-
-  .bk-prog {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    flex-shrink: 0;
-  }
-  .bk-prog.all-done { color: var(--done); }
-
-  .bk-cap {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
-    color: var(--muted);
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--s3);
-    flex-shrink: 0;
-  }
-  .bk-cap.over { color: #c45050; background: rgba(196,80,80,0.1); }
-
-  .bk-chev {
-    color: var(--muted);
-    font-size: 10px;
-    transition: transform .15s;
-    flex-shrink: 0;
-  }
-  .bk-chev.open { transform: rotate(90deg); }
-
-  /* Block body */
-  .bk-body {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height .2s ease;
-  }
-  .bk-body.open { max-height: 1000px; }
-  .bk-inner {
-    padding: 0 16px 14px;
-    padding-left: 118px;
-    border-top: 1px solid var(--border);
-  }
-
-  .task {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-top: 1px solid var(--border);
     transition: padding .15s ease, background .15s ease;
   }
-  .task:last-child { border-bottom: none; }
-  /* Done rows recede — CSS-only via :has(); browsers without it simply don't recede */
-  .task:has(.tck.done) { padding: 8px 16px; background: var(--s2); }
-  .task:has(.tck.done) .t-text { font-size: 13px; font-weight: 400; color: var(--muted); }
-  .task:has(.tck.done) .sd-cat { opacity: .55; }   /* controls keep the normal hover-reveal */
-  .task.just-added-task {
-    animation: taskGlow .8s ease;
-  }
-  @keyframes taskGlow {
-    0% { background: rgba(212,164,74,0.15); }
-    100% { background: transparent; }
-  }
+  .row:first-child { border-top: 0; }
+  .t-content { flex: 1; min-width: 0; }
+  .t-text { font-size: 15px; font-weight: 500; color: var(--text); line-height: 1.4; letter-spacing: -.005em; }
+  .t-text.done { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
+  .t-bullets { margin-top: 3px; padding-left: 2px; }
+  .t-bullet { font-size: 12px; color: var(--text2); line-height: 1.5; padding: 1px 0; display: flex; align-items: baseline; gap: 6px; }
+  .t-bullet::before { content: '•'; color: var(--border2); flex-shrink: 0; font-size: 10px; }
+  /* Row meta: carry chip · category (dot) · duration · repeat */
+  .meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+  .cat { display: inline-flex; align-items: center; gap: 6px; }
+  .cat::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--faint)); }
+  .dur { color: var(--faint); }
+  .rep { color: var(--faint); font-size: 13px; }
+  .chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; }
+  .chip.carry { color: var(--carry); background: var(--carry-bg); }
+  .chip.daily { color: var(--accent); background: var(--accent-bg); }
+  /* Done rows recede: same ground as the card (a lighter band read as emphasis). */
+  .row.done, .row:has(.tck.done) { padding: 8px 16px; background: var(--s1); }
+  .row.done .t-text, .row:has(.tck.done) .t-text { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .row.done .meta, .row:has(.tck.done) .meta { opacity: .55; }
+  .row.pin { background: var(--accent-bg); }
+  .row.pin.done { background: var(--s1); }
+  .row.just-added-task { animation: taskGlow .8s ease; }
+  @keyframes taskGlow { 0% { background: var(--accent-bg); } 100% { background: transparent; } }
 
   .tck {
     width: 20px; height: 20px;
-    border: 1.5px solid var(--faint);
-    border-radius: 6px;
-    flex-shrink: 0;
-    margin-top: 1px;
-    cursor: pointer;
-    position: relative;
-    transition: all .12s;
+    border: 1.5px solid var(--faint); border-radius: 6px;
+    flex-shrink: 0; cursor: pointer; position: relative; transition: all .12s;
   }
   .tck:hover { border-color: var(--accent); }
   .tck.done { background: var(--done); border-color: var(--done); }
   .tck.done::after {
-    content: '';
-    position: absolute;
-    top: 3px; left: 6px;
-    width: 5px; height: 9px;
-    border: 1.5px solid #fff;
-    border-top: none; border-left: none;
-    transform: rotate(45deg);
+    content: ''; position: absolute; top: 3px; left: 6px; width: 5px; height: 9px;
+    border: 1.5px solid var(--on-done); border-top: none; border-left: none; transform: rotate(45deg);
   }
-
   /* -- COMPLETION ANIMATIONS -- */
-  @keyframes checkPop {
-    0% { transform: scale(1); }
-    40% { transform: scale(1.35); }
-    100% { transform: scale(1); }
-  }
-  .tck.just-done {
-    animation: checkPop 0.25s ease;
-  }
+  @keyframes checkPop { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+  .tck.just-done { animation: checkPop 0.25s ease; }
+  @keyframes taskFlash { 0% { background: var(--done-bg); } 100% { background: transparent; } }
+  .row.just-completed { animation: taskFlash 0.6s ease; }
 
-  @keyframes taskFlash {
-    0% { background: rgba(90,158,124,0.2); }
-    100% { background: transparent; }
-  }
-  .task.just-completed {
-    animation: taskFlash 0.6s ease;
-  }
-
-  @keyframes blockComplete {
-    0% { border-color: var(--done); box-shadow: 0 0 20px rgba(90,158,124,0.2); }
-    100% { border-color: var(--border); box-shadow: none; }
-  }
-  .block.block-complete {
-    animation: blockComplete 1.2s ease;
-  }
-
-  @keyframes chipPop {
-    0% { transform: scale(1); }
-    30% { transform: scale(1.08); }
-    100% { transform: scale(1); }
-  }
-  .nn-chip.just-done {
-    animation: chipPop 0.3s ease;
-  }
-
-  .t-content { flex: 1; min-width: 0; }
-  .t-text { font-size: 15px; font-weight: 500; color: var(--text); line-height: 1.4; letter-spacing: -.005em; }
-  .t-text.done { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
-  .t-rep {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    color: var(--accent);
-    opacity: 0.7;
-    margin-left: 6px;
-  }
-  .t-meta {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 2px;
-  }
-  .t-meta.nn { color: var(--accent); opacity: 0.6; }
-  .t-bullets {
-    margin-top: 3px;
-    padding-left: 2px;
-  }
-  .t-bullet {
-    font-size: 12px;
-    color: var(--text2);
-    line-height: 1.5;
-    padding: 1px 0;
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-  }
-  .t-bullet::before {
-    content: '•';
-    color: var(--border2);
-    flex-shrink: 0;
-    font-size: 10px;
-  }
-  .t-move {
-    color: var(--faint);
-    cursor: pointer;
-    font-size: 13px;
-    flex-shrink: 0;
-    transition: color .12s;
-    padding: 0 3px;
-  }
+  /* Row controls: grip · move · remove — hover-reveal on pointer devices */
+  .sd-grip { color: var(--faint); font-size: 13px; letter-spacing: -2px; cursor: grab; opacity: 0; transition: opacity .15s; flex-shrink: 0; }
+  .row.pin .sd-grip { opacity: 0; pointer-events: none; }
+  .t-move { color: var(--faint); cursor: pointer; font-size: 13px; flex-shrink: 0; transition: color .12s, opacity .15s; padding: 0 3px; opacity: 0; }
   .t-move:hover { color: var(--accent); }
-  .t-rm {
-    color: var(--faint);
-    cursor: pointer;
-    font-size: 14px;
-    flex-shrink: 0;
-    transition: color .12s;
-    padding: 0 2px;
-  }
-  .t-rm:hover { color: #c45050; }
-
-  /* -- SIMPLE DAY CARD -- */
-  .sd-card {
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: var(--shadow);
-    padding: 14px 0 4px;
-    margin-bottom: 14px;
-    overflow: hidden;
-  }
-  .sd-card.drag-over { border-color: var(--accent); }
-  .sd-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 0 16px; margin-bottom: 4px; }
-  .sd-title {
-    font-size: 15px; font-weight: 600; letter-spacing: -.01em;
-    color: var(--text); text-transform: none;
-  }
-  .sd-card.sd-park .sd-title { color: var(--text); }
-  .sd-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .sd-progress { height: 2px; background: var(--border2); border-radius: 2px; overflow: hidden; margin: 8px 16px 6px; }
-  .sd-progress i { display: block; height: 100%; background: var(--done); transition: width .25s; }
-  .sd-empty { padding: 12px 16px 14px; font-size: 13px; color: var(--muted); }
-  .sd-card .bk-add { padding: 10px 16px; margin-top: 0; }
-  /* events strip — the day's fixed points, not tickable */
-  .sd-ev {
-    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-    border-left: 2px solid var(--accent); background: var(--accent-bg);
-    border-radius: 0 6px 6px 0; margin: 4px 16px 6px; cursor: pointer;
-  }
-  .sd-ev:hover { background: rgba(228,180,90,.22); }
-  .sd-ev.mufc { border-left-color: #DA291C; background: rgba(218,41,28,0.07); }
-  .sd-ev.mufc:hover { background: rgba(218,41,28,0.13); }
-  .sd-ev.holiday { border-left-color: #6ea8b8; background: rgba(110,168,184,0.07); }
-  .sd-ev.holiday:hover { background: rgba(110,168,184,0.13); }
-  .sd-ev-time { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); min-width: 42px; flex-shrink: 0; }
-  .sd-ev.mufc .sd-ev-time { color: #DA291C; }
-  .sd-ev.holiday .sd-ev-time { color: #6ea8b8; }
-  .sd-ev-name { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; }
-  .sd-ev-badge { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--muted); flex-shrink: 0; }
-  .sd-ev.mufc .sd-ev-badge { color: #DA291C; }
-  /* task row extras */
-  .sd-grip {
-    color: var(--faint); font-size: 13px; letter-spacing: -2px; cursor: grab;
-    opacity: 0; transition: opacity .15s; flex-shrink: 0; margin-top: 2px;
-  }
-  .task:hover .sd-grip { opacity: 1; }
-  .sd-cat { width: 3px; align-self: stretch; border-radius: 2px; flex-shrink: 0; }
-  .sd-carry {
-    font-size: 11px; font-weight: 600;
-    color: #d9846f; background: rgba(217,132,111,.14); border-radius: 6px;
-    padding: 2px 7px; flex-shrink: 0; margin-top: 1px; white-space: nowrap;
-  }
-  .task .t-move, .task .t-rm { opacity: 0; transition: opacity .15s, color .12s; }
-  .task:hover .t-move, .task:hover .t-rm { opacity: 1; }
+  .t-rm { color: var(--faint); cursor: pointer; font-size: 14px; flex-shrink: 0; transition: color .12s, opacity .15s; padding: 0 2px; opacity: 0; }
+  .t-rm:hover { color: var(--danger); }
+  .row:hover .sd-grip, .row:hover .t-move, .row:hover .t-rm { opacity: 1; }
   @media (hover: none) {
-    .sd-grip, .task .t-move, .task .t-rm { opacity: 0.6; }
+    .sd-grip, .t-move, .t-rm { opacity: 0.6; }
     .sd-grip { font-size: 15px; }
-    .task .t-move, .task .t-rm {
-      font-size: 16px;
-      min-width: 28px;
-      min-height: 28px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
+    .t-move, .t-rm { font-size: 16px; min-width: 28px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; }
   }
-  .task.drop-above { box-shadow: 0 -2px 0 var(--accent); }
-  .sd-nudge {
-    display: flex; gap: 8px; align-items: center;
-    background: var(--s1); border: 1px solid var(--border); border-radius: 8px;
-    padding: 10px 12px; font-size: 12px; color: var(--text2); margin-bottom: 14px;
-  }
+  .row.drop-above { box-shadow: 0 -2px 0 var(--accent); }
   .sd-menu {
     position: fixed; background: var(--s2); border: 1px solid var(--border2);
-    border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    border-radius: 8px; padding: 4px; box-shadow: var(--shadow-pop);
     display: flex; flex-direction: column; z-index: 999; min-width: 150px;
   }
   .sd-menu-item { font-size: 12px; color: var(--text2); padding: 7px 10px; border-radius: 5px; cursor: pointer; }
   .sd-menu-item:hover { background: var(--s3); }
 
-  /* Inline event in day flow */
-  .inline-event {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    margin: 6px 0;
-    background: var(--accent-bg);
-    border: 1px solid var(--accent-border);
-    border-radius: var(--r-card);
-    cursor: pointer;
-    transition: all .15s;
-    position: relative;
-  }
-  .inline-event:hover { background: rgba(212,164,74,0.12); }
-  .inline-event.is-past { opacity: 0.5; }
-  .ie-bar {
-    width: 3px;
-    height: 28px;
-    background: var(--accent);
-    border-radius: 2px;
-    flex-shrink: 0;
-  }
-  .ie-time {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--accent);
-    min-width: 40px;
-    flex-shrink: 0;
-  }
-  .ie-info { flex: 1; min-width: 0; }
-  .ie-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .ie-sub {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 1px;
-  }
-  .ie-badge {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    color: var(--accent);
-    opacity: 0.6;
-    flex-shrink: 0;
-  }
-  /* Holiday / notable date variant — calm teal to set it apart from work gold */
-  .inline-event.is-holiday {
-    background: rgba(110,168,184,0.08);
-    border-color: rgba(110,168,184,0.35);
-  }
-  .inline-event.is-holiday:hover { background: rgba(110,168,184,0.14); }
-  .inline-event.is-holiday .ie-bar { background: #6ea8b8; }
-  .inline-event.is-holiday .ie-badge { color: #6ea8b8; }
-  /* Man Utd fixture variant — United red */
-  .inline-event.is-mufc {
-    background: rgba(218,41,28,0.08);
-    border-color: rgba(218,41,28,0.35);
-  }
-  .inline-event.is-mufc:hover { background: rgba(218,41,28,0.14); }
-  .inline-event.is-mufc .ie-bar { background: #DA291C; }
-  .inline-event.is-mufc .ie-badge { color: #DA291C; opacity: 0.9; }
-  .ie-time.ie-allday {
-    font-size: 8px;
-    letter-spacing: 1px;
-    opacity: 0.55;
-  }
-
   /* Drag and drop */
-  .task[draggable="true"], .ot-row[draggable="true"] { cursor: grab; }
-  .task[draggable="true"]:active, .ot-row[draggable="true"]:active { cursor: grabbing; }
-  .task.dragging, .ot-row.dragging { opacity: 0.3; }
-  .bk-body.drag-over, .bk-hd.drag-over {
-    background: var(--accent-bg) !important;
-    outline: 2px dashed var(--accent-border);
-    outline-offset: -2px;
-    border-radius: var(--r-ctl);
-  }
+  .row[draggable="true"] { cursor: grab; }
+  .row[draggable="true"]:active { cursor: grabbing; }
+  .row.dragging { opacity: 0.3; }
 
-  /* Gym gear icon */
-  .gym-gear {
-    font-size: 12px;
-    color: var(--muted);
-    margin-left: 6px;
-    cursor: pointer;
-    opacity: 0.4;
-    transition: all .15s;
-    vertical-align: middle;
-  }
-  .gym-gear:hover { opacity: 1; color: var(--accent); }
-
-  /* Gym day picker */
-  .gym-picker {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 0;
-    margin-bottom: 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-  }
-  .gym-picker-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-    margin-right: 4px;
-  }
-  .gym-day {
-    font-size: 11px;
-    font-weight: 500;
-    padding: 3px 7px;
-    border-radius: 4px;
-    color: var(--muted);
-    background: var(--s3);
-    cursor: pointer;
-    transition: all .12s;
-    user-select: none;
-  }
+  /* Gym day picker (edit-task modal) */
+  .gym-picker { display: flex; align-items: center; gap: 4px; padding: 6px 0; margin-bottom: 4px; border-bottom: 1px solid var(--hairline); }
+  .gym-picker-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 4px; }
+  .gym-day { font-size: 11px; font-weight: 500; padding: 3px 7px; border-radius: 4px; color: var(--muted); background: var(--s3); cursor: pointer; transition: all .12s; user-select: none; }
   .gym-day:hover { color: var(--text2); background: var(--s2); }
-  .gym-day.active {
-    color: var(--accent);
-    background: var(--accent-bg);
-    border: 1px solid var(--accent-border);
-  }
+  .gym-day.active { color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); }
 
-  /* Block inline add */
-  .bk-add {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 0;
-    margin-top: 4px;
-    cursor: text;
-    opacity: 0.4;
-    transition: opacity .15s;
-  }
-  .bk-add:hover, .bk-add.focused { opacity: 1; }
-  .bk-add-plus {
-    font-size: 13px;
-    color: var(--muted);
-    width: 20px;
-    text-align: center;
-    flex-shrink: 0;
-  }
+  /* The one add box — last row of the list card */
+  .bk-add { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); color: var(--faint); cursor: text; }
+  .bk-add-plus { font-size: 14px; color: var(--faint); width: 20px; text-align: center; flex-shrink: 0; transition: color .15s; }
   .bk-add.focused .bk-add-plus { color: var(--accent); }
-  .bk-add-inp {
-    flex: 1;
-    background: none;
-    border: none;
-    border-bottom: 1px solid transparent;
-    outline: none;
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    padding: 2px 0;
-  }
-  .bk-add.focused .bk-add-inp { border-bottom-color: var(--border2); }
+  .bk-add-inp { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--text); font-size: 14px; font-family: inherit; padding: 2px 0; }
   .bk-add-inp::placeholder { color: var(--faint); }
 
-  /* Quick inline add */
-  .quick-add {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    margin-top: 10px;
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: var(--r-card);
-    cursor: text;
-    transition: all .15s;
-  }
-  .quick-add:hover, .quick-add.focused {
-    border-color: var(--accent-border);
-    background: var(--s2);
-  }
-  .quick-add-icon {
-    font-size: 18px;
-    color: var(--muted);
-    flex-shrink: 0;
-    width: 18px;
-    text-align: center;
-    line-height: 1;
-    transition: color .15s;
-  }
-  .quick-add:hover .quick-add-icon,
-  .quick-add.focused .quick-add-icon { color: var(--accent); }
-  .quick-add-inp {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    line-height: 1.4;
-  }
-  .quick-add-inp::placeholder { color: var(--faint); }
+  /* Parking lot: one quiet line when empty, a second .list when not */
+  .parking { margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+  .parking.drag-over { outline: 1px dashed var(--accent); outline-offset: 4px; border-radius: 6px; }
+  .parking b { font-weight: 600; color: var(--text); }
+  .parking .n { color: var(--faint); }
+  .parking button { color: var(--muted); }
+  .parking button:hover { color: var(--accent); }
+  .parking-sec { margin-top: 28px; }
 
-  .t-divider {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-    padding: 8px 0 3px;
-    margin-top: 2px;
-    border-top: 1px dashed rgba(255,255,255,0.08);
-  }
+  /* ── RIGHT RAIL ── */
+  .rail { display: flex; flex-direction: column; gap: 34px; }
+  .rail h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+  .rail h3 .right { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+  .rail h3.clickable { cursor: pointer; user-select: none; }
+  .rail h3.clickable:hover { color: var(--text2); }
+  .rail h3 .add { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .rail h3 .add:hover { color: var(--accent); }
+  .badge { font-family: 'JetBrains Mono', monospace; background: var(--s3); padding: 1px 7px; border-radius: var(--r-ctl); font-size: 11px; color: var(--text2); }
+  .chev { font-size: 8px; color: var(--muted); transition: transform .2s ease; display: inline-block; }
+  .chev.open { transform: rotate(180deg); }
 
-  /* ── SIDEBAR ── */
-  .sb-top {
-    padding: 16px 16px 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .sb-stats-strip {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex: 1;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .sb-stats-strip::-webkit-scrollbar { display: none; }
-  .sb-stat-pill {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--muted);
-    white-space: nowrap;
-    flex: none;
-  }
-  .sb-sync-pill { flex: none; }
-  .sb-stat-pill .sv { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 500; }
-  .sb-stat-pill .sv.accent { color: var(--accent); }
+  /* Counting down */
+  .rail .count { display: flex; align-items: baseline; gap: 10px; }
+  .rail .count + .count { margin-top: 14px; }
+  .rail .count .n { font-size: 30px; font-weight: 600; letter-spacing: -.03em; line-height: 1; }
+  .rail .count .l { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; }
+  .rail .count .l b { color: var(--text); font-weight: 600; }
+  .rail .count .l small { display: block; color: var(--faint); margin-top: 2px; font-size: 12px; }
+  .rail .count .unpin { color: var(--faint); font-size: 16px; line-height: 1; opacity: 0; transition: opacity .12s, color .12s; align-self: center; min-width: 24px; min-height: 24px; }
+  .rail .count:hover .unpin { opacity: 1; }
+  .rail .count .unpin:hover { color: var(--accent); }
 
-  /* Always-visible sync status pill (click to open setup) */
-  .sb-sync-pill {
-    display: flex; align-items: center; gap: 5px;
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--muted);
-    padding: 2px 8px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    transition: border-color .12s, color .12s;
-    white-space: nowrap;
-  }
-  .sb-sync-pill:hover { border-color: var(--accent-border); color: var(--text2); }
-  .sync-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--border2); flex: none;
-  }
-  .sync-dot.sync-ok { background: #6fbf73; }
-  .sync-dot.sync-pending { background: var(--accent); }
-  .sync-dot.sync-err { background: #e06c75; }
-  .sync-dot.sync-off { background: var(--border2); }
+  /* Coming up, grouped per day */
+  .up { display: flex; flex-direction: column; gap: 14px; }
+  .up .d { display: grid; grid-template-columns: 56px 1fr; gap: 6px 12px; }
+  .up .dh { color: var(--muted); font-size: 12px; font-weight: 600; padding-top: 2px; }
+  .up .dh.today { color: var(--accent); }
+  .up .mh { font-size: 12px; font-weight: 600; color: var(--muted); padding-top: 6px; border-top: 1px solid var(--hairline); }
+  .up .ev { display: flex; gap: 10px; align-items: baseline; font-size: 13px; grid-column: 2; cursor: pointer; min-width: 0; }
+  .up .ev .t { color: var(--faint); font-size: 11.5px; min-width: 38px; flex-shrink: 0; }
+  .up .ev .x { color: var(--text); flex: 1; min-width: 0; }
+  .up .ev .x.past { color: var(--faint); text-decoration: line-through; }
+  .up .ev .sub { color: var(--faint); }
+  .up .ev .acts { display: inline-flex; gap: 6px; align-items: center; opacity: 0; transition: opacity .12s; flex-shrink: 0; }
+  .up .ev:hover .acts { opacity: 1; }
+  .ev-pin { cursor: pointer; opacity: 0.5; transition: opacity .12s, transform .12s; font-size: 11px; line-height: 1; }
+  .ev-pin:hover { opacity: 1; transform: scale(1.15); }
+  .ev-pin.active { opacity: 1; }
+  .ev-rm { color: var(--faint); cursor: pointer; font-size: 12px; transition: color .12s; }
+  .ev-rm:hover { color: var(--danger); }
+  .bd { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 1px 5px; border-radius: 4px; color: var(--mufc); background: var(--mufc-bg); flex-shrink: 0; text-decoration: none; }
+  .bd.hol { color: var(--accent2); background: var(--accent2-bg); }
+  .bell { font-size: 10px; color: var(--accent); margin-left: 4px; }
+  .later { color: var(--muted); font-size: 12px; font-weight: 600; text-align: left; padding: 2px 0; }
+  .later:hover { color: var(--text); }
+  .later .chev { margin-left: 6px; }
+  .up-empty { font-size: 12px; color: var(--muted); }
+  @media (hover: none) { .up .ev .acts, .rail .count .unpin { opacity: .7; } }
 
-  .sb-actions {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    flex: none;
+  /* This week (weekly task rows) */
+  .wt { display: flex; align-items: center; gap: 7px; padding: 5px 0; border-bottom: 1px solid var(--hairline); font-size: 12px; }
+  .wt:last-child { border-bottom: none; }
+  .wt-ck { width: 12px; height: 12px; border: 1.5px solid var(--border2); border-radius: 3px; flex-shrink: 0; cursor: pointer; position: relative; transition: all .12s; }
+  .wt-ck:hover { border-color: var(--accent); }
+  .wt-ck.done { background: var(--done); border-color: var(--done); }
+  .wt-ck.done::after {
+    content: ''; position: absolute; top: 1px; left: 2px; width: 4px; height: 6px;
+    border: 1.5px solid var(--on-done); border-top: none; border-left: none; transform: rotate(45deg);
   }
-  /* Cloud sync status dot (sits on the data ⋮ button) */
-  #syncDot {
-    position: absolute; top: 2px; right: 2px;
-    width: 7px; height: 7px; border-radius: 50%;
-    pointer-events: none;
-    background: var(--border2);
-  }
-  #syncDot.sync-ok { background: #6fbf73; }
-  #syncDot.sync-pending { background: var(--accent); }
-  #syncDot.sync-err { background: #e06c75; }
-  #syncDot.sync-off { background: var(--border2); }
+  .wt-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .wt-txt { flex: 1; color: var(--text2); }
+  .wt-txt.done { text-decoration: line-through; color: var(--muted); }
+  .wt-day { font-size: 11px; font-weight: 500; color: var(--muted); padding: 2px 6px; background: var(--s3); border-radius: 4px; cursor: pointer; transition: all .12s; }
+  .wt-day:hover { color: var(--accent); background: var(--accent-bg); }
+  .wt-rm { color: var(--faint); cursor: pointer; font-size: 11px; transition: color .12s; }
+  .wt-rm:hover { color: var(--danger); }
+  .wk-empty { font-size: 12px; color: var(--muted); }
 
-  .sb-icon-btn {
-    position: relative;
-    width: 30px; height: 30px;
-    display: flex; align-items: center; justify-content: center;
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-    border-radius: var(--r-chip);
-    transition: all .15s;
-    position: relative;
-  }
-  .sb-icon-btn:hover { background: var(--s2); color: var(--text2); }
-  .sb-icon-btn.active { background: var(--s3); color: var(--accent); }
-
-  /* Search overlay inside sidebar */
-  .sb-search-wrap {
-    padding: 0 16px;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height .2s ease, padding .2s ease;
-  }
-  .sb-search-wrap.open {
-    max-height: 60px;
-    padding: 8px 16px;
-    overflow: visible;
-  }
-
-  /* Data dropdown */
-  .sb-data-menu {
-    position: absolute;
-    top: 34px;
-    right: 0;
-    background: var(--s2);
-    border: 1px solid var(--border2);
-    border-radius: var(--r-ctl);
-    padding: 4px;
-    min-width: 150px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    z-index: 60;
-    display: none;
-  }
-  .sb-data-menu.show { display: block; }
-  .sb-data-item {
-    display: block;
-    width: 100%;
-    padding: 7px 10px;
-    font-size: 13px;
-    font-family: inherit;
-    color: var(--text2);
-    background: none;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    text-align: left;
-    transition: background .12s;
-  }
-  .sb-data-item:hover { background: var(--s3); }
-  .sb-data-item.danger { color: #c45050; }
-  .sb-data-item.danger:hover { background: rgba(196,80,80,0.1); }
-
-  .sb-sec {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .sb-h {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: .02em;
-    text-transform: none;
-    color: var(--muted);
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .sb-h-icon {
-    width: 18px; height: 18px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .sb-h-right {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .sb-badge {
-    font-family: 'JetBrains Mono', monospace;
-    background: var(--s3);
-    padding: 1px 7px;
-    border-radius: var(--r-ctl);
-    font-size: 11px;
-    color: var(--text2);
-  }
-  .sb-chev {
-    font-size: 8px;
-    color: var(--muted);
-    transition: transform .2s ease;
-    display: inline-block;
-  }
-  .sb-chev.open { transform: rotate(180deg); }
-  .sb-h.clickable { cursor: pointer; user-select: none; }
-  .sb-h.clickable:hover { color: var(--text2); }
-
-  /* Quick Add (PA) */
-  .qa-form { display: flex; flex-direction: column; gap: 6px; }
+  /* ── FORM CONTROLS (modals, event form, search) ── */
   .qa-inp {
     width: 100%;
-    background: var(--s2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-size: 14px;
-    color: var(--text);
-    font-family: inherit;
-    outline: none;
+    background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-size: 14px; color: var(--text); font-family: inherit; outline: none;
     transition: border-color .12s;
   }
   .qa-inp:focus { border-color: var(--accent); }
   .qa-inp::placeholder { color: var(--faint); }
-  .qa-hint {
-    font-size: 11px;
-    color: var(--muted);
-    line-height: 1.4;
-    padding: 2px 0;
-  }
-  .qa-row { display: flex; gap: 5px; }
   .qa-sel, .qa-num {
-    background: var(--s2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 7px 8px;
-    font-size: 13px;
-    color: var(--text);
-    font-family: inherit;
-    outline: none;
+    background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 8px; font-size: 13px; color: var(--text); font-family: inherit; outline: none;
   }
   .qa-sel { flex: 1; }
   .qa-num { width: 56px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
   .qa-btn {
-    background: var(--accent);
-    color: var(--bg);
-    border: none;
-    border-radius: 8px;
-    padding: 7px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    transition: opacity .12s;
-    white-space: nowrap;
+    background: var(--accent); color: var(--on-accent); border: none; border-radius: 8px;
+    padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    transition: opacity .12s; white-space: nowrap;
   }
   .qa-btn:hover { opacity: 0.85; }
-  .pa-msg {
-    margin-top: 4px;
-    padding: 8px 12px;
-    background: var(--accent-bg);
-    border: 1px solid var(--accent-border);
-    border-radius: var(--r-chip);
-    font-size: 11px;
-    color: var(--accent);
-    display: none;
-    animation: fadeUp .2s;
-    line-height: 1.4;
+
+  /* Toast (#paMsg) — fixed, bottom-centre. showPa / showPaWithMove write here. */
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(8px);
+    z-index: 950; max-width: min(92vw, 480px);
+    padding: 10px 14px;
+    background: var(--s2); border: 1px solid var(--accent-border); border-radius: 10px;
+    box-shadow: var(--shadow-pop);
+    font-size: 13px; color: var(--text); line-height: 1.4;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
   }
-  .pa-msg.show { display: block; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
 
   /* App-update toast — gentle "update available" prompt for long-lived PWA sessions.
@@ -1549,7 +488,7 @@
     background: var(--s2);
     border: 1px solid var(--accent-border);
     border-radius: 10px;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+    box-shadow: var(--shadow-pop);
     font-size: 12px; color: var(--text);
     opacity: 0; pointer-events: none;
     transition: opacity .2s ease, transform .2s ease;
@@ -1557,214 +496,36 @@
   .update-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
   .update-toast .ut-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); flex-shrink: 0; }
   .update-toast .ut-text { white-space: nowrap; }
-  .update-toast .ut-refresh { font-family: inherit; font-size: 11px; font-weight: 600; color: var(--bg); background: var(--accent); border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+  .update-toast .ut-refresh { font-family: inherit; font-size: 11px; font-weight: 600; color: var(--on-accent); background: var(--accent); border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer; }
   .update-toast .ut-refresh:hover { filter: brightness(1.08); }
   .update-toast .ut-refresh:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
   .update-toast .ut-dismiss { font-family: inherit; font-size: 16px; line-height: 1; color: var(--muted); background: none; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 26px; min-height: 26px; padding: 0; }
-  .update-toast .ut-dismiss:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .update-toast .ut-dismiss:hover { color: var(--text); background: var(--hover); }
   .update-toast .ut-dismiss:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
 
-  /* Add Event form */
+  /* Add Event form (rail) */
   .ae-form { display: flex; flex-direction: column; gap: 6px; }
   .ae-row { display: flex; gap: 5px; }
   .ae-inp {
-    flex: 1;
-    background: var(--s2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 14px;
-    color: var(--text);
-    font-family: inherit;
-    outline: none;
+    flex: 1; background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 14px; color: var(--text); font-family: inherit; outline: none;
   }
   .ae-inp:focus { border-color: var(--accent); }
   .ae-inp::placeholder { color: var(--faint); }
   .ae-date {
-    background: var(--s2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 7px 8px;
-    font-size: 13px;
-    color: var(--text);
-    font-family: inherit;
-    outline: none;
-    color-scheme: dark;
+    background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 8px; font-size: 13px; color: var(--text); font-family: inherit; outline: none;
+    color-scheme: dark; min-width: 0;
   }
   .ae-btn {
-    background: var(--s2);
-    color: var(--text2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 7px 12px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all .12s;
-    white-space: nowrap;
+    background: var(--s2); color: var(--text2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 12px; font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit;
+    transition: all .12s; white-space: nowrap;
   }
   .ae-btn:hover { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
+  .modal-eyebrow { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
 
-  /* Non-negotiable rows */
-  .nn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-  }
-  .nn:last-child { border-bottom: none; }
-  .nn-dot {
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--accent);
-    flex-shrink: 0;
-    opacity: 0.6;
-  }
-  .nn-dot.done { background: var(--done); opacity: 1; }
-  .nn-txt { font-size: 11px; color: var(--text2); flex: 1; }
-  .nn-txt.done { text-decoration: line-through; color: var(--muted); }
-  .nn-biz {
-    font-size: 11px;
-    color: var(--muted);
-  }
-
-  /* Weekly task rows */
-  .wt {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 5px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    font-size: 12px;
-  }
-  .wt:last-child { border-bottom: none; }
-  .wt-ck {
-    width: 12px; height: 12px;
-    border: 1.5px solid var(--border2);
-    border-radius: 3px;
-    flex-shrink: 0;
-    cursor: pointer;
-    position: relative;
-    transition: all .12s;
-  }
-  .wt-ck:hover { border-color: var(--accent); }
-  .wt-ck.done { background: var(--done); border-color: var(--done); }
-  .wt-ck.done::after {
-    content: '';
-    position: absolute;
-    top: 1px; left: 2px;
-    width: 4px; height: 6px;
-    border: 1.5px solid #fff;
-    border-top: none; border-left: none;
-    transform: rotate(45deg);
-  }
-  .wt-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-  .wt-txt { flex: 1; color: var(--text2); }
-  .wt-txt.done { text-decoration: line-through; color: var(--muted); }
-  .wt-day {
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--muted);
-    padding: 2px 6px;
-    background: var(--s3);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all .12s;
-  }
-  .wt-day:hover { color: var(--accent); background: var(--accent-bg); }
-  .wt-rm {
-    color: var(--faint);
-    cursor: pointer;
-    font-size: 11px;
-    transition: color .12s;
-  }
-  .wt-rm:hover { color: #c45050; }
-
-  /* Events list */
-  .ev-group {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--muted);
-    margin: 12px 0 4px;
-    padding-top: 9px;
-    border-top: 1px solid rgba(255,255,255,0.06);
-  }
-  .ev-group:first-child {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: none;
-  }
-  .ev-now {
-    border-left: 2px solid var(--accent);
-    padding-left: 8px;
-    margin-bottom: 2px;
-  }
-  .ev-now .ev-group { color: var(--accent); }
-  .ev-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    font-size: 13px;
-  }
-  .ev-item:last-child { border-bottom: none; }
-  .ev-group + .ev-item { border-bottom: 1px solid rgba(255,255,255,0.06); }
-  .ev-date {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px;
-    color: var(--muted);
-    min-width: 48px;
-    flex-shrink: 0;
-  }
-  .ev-txt { flex: 1; color: var(--text); }
-  .ev-days {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    color: var(--muted);
-    padding: 2px 6px;
-    background: var(--s3);
-    border-radius: 4px;
-  }
-  .ev-days.soon { color: var(--accent); background: var(--accent-bg); }
-  .ev-days.today { color: var(--done); background: var(--done-bg); font-weight: 500; }
-  .ev-rm {
-    color: var(--faint);
-    cursor: pointer;
-    font-size: 11px;
-    transition: color .12s;
-  }
-  .ev-rm:hover { color: #c45050; }
-
-  /* PA nudge — integrated into bottom */
-  .pa-strip {
-    padding: 10px 16px;
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.5;
-    margin-top: 4px;        /* was margin-top:auto, which shoved this to the
-                               bottom of the sidebar and created the empty gap
-                               + scrollbar. Let it flow under the content. */
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .pa-strip .pa-icon {
-    width: 18px; height: 18px;
-    background: var(--accent-bg);
-    border-radius: 5px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-  .pa-strip strong { color: var(--accent); font-weight: 500; }
-
-  /* Category BG colors */
+  /* Category BG colors (search dot, weekly dot) */
   .cat-bg-liquidbiz { background: var(--c-liquidbiz); }
   .cat-bg-barkspa { background: var(--c-barkspa); }
   .cat-bg-privatelabel { background: var(--c-privatelabel); }
@@ -1781,340 +542,185 @@
 
   /* ── SEARCH RESULTS ── */
   #searchResults {
-    position: absolute;
-    top: 100%;
-    left: 0; right: 0;
-    z-index: 50;
-    background: var(--s1);
-    border: 1px solid var(--border2);
-    border-radius: var(--r-ctl);
-    margin-top: 4px;
-    max-height: 280px;
-    overflow-y: auto;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+    background: var(--s1); border: 1px solid var(--border2); border-radius: var(--r-ctl);
+    margin-top: 4px; max-height: 280px; overflow-y: auto; box-shadow: var(--shadow-pop);
   }
-  .sr-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 12px;
-    cursor: pointer;
-    transition: background .1s;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-  }
+  .sr-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; transition: background .1s; border-bottom: 1px solid var(--hairline); }
   .sr-item:last-child { border-bottom: none; }
   .sr-item:hover { background: var(--s2); }
   .sr-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
   .sr-text { flex: 1; font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sr-text em { font-style: normal; color: var(--accent); font-weight: 600; }
-  .sr-meta {
-    font-size: 11px;
-    color: var(--muted);
-    flex-shrink: 0;
-    text-align: right;
-  }
-  .sr-empty {
-    padding: 14px 12px;
-    font-size: 12px;
-    color: var(--muted);
-    text-align: center;
-  }
+  .sr-meta { font-size: 11px; color: var(--muted); flex-shrink: 0; text-align: right; }
+  .sr-empty { padding: 14px 12px; font-size: 12px; color: var(--muted); text-align: center; }
 
-  /* ── CALENDAR DROPDOWN ── */
+  /* ── CALENDAR DROPDOWN (under the date label) ── */
   .cal {
-    position: absolute;
-    top: 28px;
-    left: 0;
-    z-index: 100;
-    background: var(--s1);
-    border: 1px solid var(--border2);
-    border-radius: var(--r-card);
-    padding: 14px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    width: 280px;
-    animation: calIn .15s ease;
+    position: absolute; top: 30px; left: 0; z-index: 100;
+    background: var(--s1); border: 1px solid var(--border2); border-radius: var(--r-card);
+    padding: 14px; box-shadow: var(--shadow-pop); width: 280px; animation: calIn .15s ease;
+    font-weight: 400; letter-spacing: 0; white-space: normal; cursor: default;
   }
   @keyframes calIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-  .cal-hdr {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-  .cal-title {
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .cal-nav {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 3px 8px;
-    font-size: 12px;
-    transition: all .12s;
-  }
+  .cal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-title { font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text); }
+  .cal-nav { background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--muted); cursor: pointer; padding: 3px 8px; font-size: 12px; transition: all .12s; }
   .cal-nav:hover { color: var(--accent); border-color: var(--accent-border); }
-  .cal-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
-    text-align: center;
-  }
-  .cal-dow {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--muted);
-    padding: 4px 0;
-  }
-  .cal-day {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--text2);
-    padding: 6px 0;
-    border-radius: var(--r-chip);
-    cursor: pointer;
-    transition: all .1s;
-    border: 1px solid transparent;
-  }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .cal-dow { font-size: 11px; font-weight: 600; color: var(--muted); padding: 4px 0; }
+  .cal-day { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text2); padding: 6px 0; border-radius: var(--r-chip); cursor: pointer; transition: all .1s; border: 1px solid transparent; }
   .cal-day:hover { background: var(--s3); color: var(--text); }
   .cal-day.other { color: var(--faint); }
   .cal-day.today { color: var(--accent); border-color: var(--accent-border); }
-  .cal-day.selected { background: var(--accent); color: #0c0d11; font-weight: 600; }
-  .cal-day.has-ev::after {
-    content: '';
-    display: block;
-    width: 3px; height: 3px;
-    background: var(--accent);
-    border-radius: 50%;
-    margin: 1px auto 0;
-  }
-  .cal-day.selected.has-ev::after { background: #0c0d11; }
+  .cal-day.selected { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .cal-day.has-ev::after { content: ''; display: block; width: 3px; height: 3px; background: var(--accent); border-radius: 50%; margin: 1px auto 0; }
+  .cal-day.selected.has-ev::after { background: var(--on-accent); }
 
-  /* Tactile feedback — a small physical "push" on press (skill 4.5).
+  /* Tactile feedback — a small physical "push" on press.
      Respect reduced-motion: skip the transform for users who opt out. */
   @media (prefers-reduced-motion: no-preference) {
     .tck:active { transform: scale(0.86); }
-    .qa-btn:active, .add-btn:active, .day-btn:active,
-    .sb-icon-btn:active, .nn-chip:active, .cal-day:active { transform: scale(0.95); }
-    .block .bk-hd:active { transform: scale(0.996); }
+    .qa-btn:active, .day:active, .icon-btn:active, .cal-day:active, .theme button:active { transform: scale(0.95); }
   }
 
-  @media (max-width: 1200px) { .sidebar { width: 320px; min-width: 320px; } .main { padding: 0 32px 80px; } }
+  /* ── MOBILE ── single column; the rail simply follows main in source order. */
   @media (max-width: 900px) {
-    .app { flex-direction: column; max-width: 100%; }
-    .sidebar {
-      width: 100%; min-width: auto; height: auto;
-      border-left: none; border-top: 1px solid var(--border);
-      /* Safe areas: env() is 0 outside standalone iOS, so this is a no-op elsewhere */
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-      padding-bottom: env(safe-area-inset-bottom);   /* home-indicator clearance */
+    .shell {
+      padding: 0 calc(20px + env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
     }
-    .main {
-      height: auto; max-width: 100%;
-      padding: env(safe-area-inset-top) calc(20px + env(safe-area-inset-right)) 64px calc(20px + env(safe-area-inset-left));
-    }
-
-    /* Header compaction */
-    .hdr { padding: 16px 0 0; }
-    .greeting { font-size: 24px; }
-
-    /* Day-nav: one scrollable line, no wrapping */
-    .day-nav {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .day-nav::-webkit-scrollbar { display: none; }
-    .day-btn { flex: 0 0 auto; min-height: 36px; min-width: 36px; padding: 0 8px; }
-
-    /* Compact countdown rows are now the base style (see .cd-hero); only the
-       column width changes here. */
-    .cd-hero-row { max-width: none; margin: 12px 0 8px; }
-
-    /* Non-negotiables: label line above full-width tappable chips */
-    .nn-strip { flex-direction: column; align-items: stretch; gap: 8px; }
-    .nn-strip-label { width: 100%; }
-    .nn-strip-items { flex-wrap: wrap; width: 100%; flex: none; }
-    .nn-chip { min-height: 40px; padding: 8px 14px; }
-
-    /* Sidebar section order — CSS-only reorder, no DOM moves.
-       Sidebar children (DOM order): .sb-top(1) .sb-search-wrap(2)
-       .sb-sec QuickAdd(3) .sb-sec Events(4) .sb-sec ThisWeek(5) .pa-strip(6) */
-    .sidebar > .sb-top { order: 0; }               /* stats strip stays first */
-    .sidebar > .sb-sec:nth-child(4) { order: 1; }  /* Events */
-    .sidebar > .sb-sec:nth-child(3) { order: 2; }  /* Quick Add */
-    .sidebar > .sb-search-wrap { order: 3; }       /* Search */
-    .sidebar > .sb-sec:nth-child(5) { order: 4; }  /* This Week */
-    .sidebar > .pa-strip { order: 5; }             /* PA strip stays last */
-
+    /* Wrapped, the bar is ~180px tall — too much to pin on a phone, so it scrolls. */
+    .top { position: static; flex-wrap: wrap; gap: 14px 20px; padding-top: calc(16px + env(safe-area-inset-top)); margin-bottom: 22px; }
+    .utils { margin-left: 0; flex-wrap: wrap; gap: 12px 16px; }
+    /* Week strip: one scrollable line, no wrapping */
+    .week { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 100%; margin-left: 0; }
+    .week::-webkit-scrollbar { display: none; }
+    .day { flex: 0 0 auto; min-height: 36px; min-width: 36px; padding: 0 8px; }
+    .cols { grid-template-columns: 1fr; gap: 40px; }
+    .rail { gap: 34px; }
+    .now h1 { font-size: 26px; }
+    .row.pin { min-height: 40px; }
+    .meta { gap: 8px; }
     /* Tap targets */
     .tck { width: 26px; height: 26px; border-radius: 6px; }
     .tck.done::after { top: 5px; left: 9px; width: 6px; height: 11px; }
   }
   @media (max-width: 480px) {
-    .main {
+    .shell {
       padding-left: calc(14px + env(safe-area-inset-left));
       padding-right: calc(14px + env(safe-area-inset-right));
     }
-    .cd-hero-loc { display: none; }
+    .rail .count small { display: none; }
   }
 </style>
 </head>
 <body>
 
-<div class="app">
-  <div class="main" id="main"></div>
-  <div class="sidebar">
-
-    <!-- Top bar: stats + icon actions -->
-    <div class="sb-top">
-      <div class="sb-stats-strip">
-        <div class="sb-stat-pill"><span class="sv accent" id="sStreak">0</span> streak</div>
-        <div class="sb-stat-pill"><span class="sv" id="sTasks">0</span> done</div>
-        <div class="sb-stat-pill" id="sNnPill"><span class="sv" id="sNn">0/5</span> non-negs</div>
-        <div class="sb-sync-pill" id="syncPill" onclick="openSyncSetup()" title="Cloud sync — click to set up or add a device">
-          <span class="sync-dot" id="syncPillDot"></span><span id="syncPillText">sync off</span>
+<div class="shell">
+  <!-- Top bar: date · week · utilities. renderTop() fills #topDate, #week, #topBtns. -->
+  <div class="top">
+    <div class="today-label" onclick="toggleCalendar()" title="Pick a date">
+      <span id="topDate"></span><span class="caret">&#9660;</span>
+      <div id="calendarDrop"></div>
+    </div>
+    <div class="week" id="week"></div>
+    <div class="utils">
+      <span class="mono"><b id="sTasks">0/0</b> done</span>
+      <span class="mono" title="Days in a row with every Daily ticked"><b id="sStreak">0</b> streak</span>
+      <span id="sNnPill" style="display:none;"><b id="sNn">0/1</b> daily</span>
+      <span class="sync" id="syncPill" onclick="openSyncSetup()" title="Cloud sync — click to set up or add a device">
+        <span class="sync-dot" id="syncPillDot"></span><span id="syncPillText">sync off</span>
+      </span>
+      <a href="https://book.squareup.com/appointments/nwad0qj8ufr98p/location/LP6ABYFXRWNDT/availability" target="_blank" rel="noopener" title="Book a haircut">Book haircut</a>
+      <span id="topBtns" style="display:contents;"></span>
+      <button class="icon-btn" type="button" onclick="toggleSbSearch()" id="sbSearchBtn" title="Search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>
+      </button>
+      <div class="icon-btn" onclick="toggleDataMenu(this)" title="Data">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+        <span id="syncDot" title="Sync status"></span>
+        <div class="data-menu" id="dataMenu" style="display:none;">
+          <div class="data-item" id="syncMenuItem" onclick="event.stopPropagation();openSyncSetup()">Sync: off</div>
+          <div class="data-item" onclick="event.stopPropagation();exportData()">Export backup</div>
+          <div class="data-item" onclick="event.stopPropagation();document.getElementById('importFile').click()">Import</div>
+          <div class="data-item danger" onclick="event.stopPropagation();resetData()">Reset all data</div>
         </div>
       </div>
-      <div class="sb-actions">
-        <button class="sb-icon-btn" onclick="toggleSbSearch()" id="sbSearchBtn" title="Search">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>
-        </button>
-        <div class="sb-icon-btn" onclick="toggleDataMenu(this)" title="Data" style="cursor:pointer;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-          <span id="syncDot" title="Sync status"></span>
-          <div class="sb-data-menu" id="dataMenu" style="display:none;">
-            <div class="sb-data-item" id="syncMenuItem" onclick="event.stopPropagation();openSyncSetup()">Sync: off</div>
-            <div class="sb-data-item" onclick="event.stopPropagation();exportData()">Export Backup</div>
-            <div class="sb-data-item" onclick="event.stopPropagation();document.getElementById('importFile').click()">Import</div>
-            <div class="sb-data-item danger" onclick="event.stopPropagation();resetData()">Reset All Data</div>
-          </div>
-        </div>
-        <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
+      <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
+      <div class="theme" role="group" aria-label="Theme">
+        <button type="button" data-t="dark" aria-pressed="true" onclick="setTheme('dark')">Dark</button>
+        <button type="button" data-t="light" aria-pressed="false" onclick="setTheme('light')">Light</button>
       </div>
-    </div>
-
-    <!-- Search (collapsible) -->
-    <div class="sb-search-wrap" id="sbSearchWrap">
-      <div style="position:relative;">
-        <input class="qa-inp" type="text" id="searchInp" placeholder="Search tasks & events..."
-          oninput="searchTasks(this.value)" onfocus="searchTasks(this.value)" style="padding-left:30px;font-size:12px;">
-        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a90a3" stroke-width="2.5" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>
-        <div id="searchResults" style="display:none;"></div>
-      </div>
-    </div>
-
-    <!-- PA Quick Add -->
-    <div class="sb-sec" style="background:var(--bg);border-top:1px solid var(--border);">
-      <div class="sb-h" style="margin-bottom:8px;">
-        <span class="sb-h-icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </span>
-        Quick add
-      </div>
-      <div class="qa-form">
-        <input class="qa-inp" type="text" id="qaInp" placeholder='e.g. "Call mum today 10 mins"'
-          onkeydown="if(event.key==='Enter')paAdd()">
-        <div class="qa-row">
-          <select class="qa-sel" id="qaCat">
-            <option value="auto">Auto-detect</option>
-            <option value="liquidbiz">Liquid Biz</option>
-            <option value="privatelabel">Private Label</option>
-            <option value="barkspa">Bark Spa</option>
-            <option value="life">Life</option>
-            <option value="admin">Admin</option>
-          </select>
-          <input class="qa-num" type="number" id="qaDur" value="30" min="5" max="480" step="5" title="Duration (mins)">
-          <span style="font-size:10px;color:var(--muted);line-height:30px">m</span>
-          <select class="qa-sel" id="qaWhen" style="min-width:74px;">
-            <option value="auto">Auto</option>
-            <option value="today">Today</option>
-            <option value="tomorrow">Tomorrow</option>
-            <option value="week">This week</option>
-          </select>
-          <button class="qa-btn" onclick="paAdd()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </div>
-        <div class="pa-msg" id="paMsg"></div>
-      </div>
-    </div>
-
-    <!-- Upcoming Events (always open) -->
-    <div class="sb-sec">
-      <div class="sb-h">
-        <span class="sb-h-icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        </span>
-        Events
-        <span class="sb-h-right">
-          <button class="ae-btn" onclick="toggleEventForm()" style="padding:2px 8px;font-size:9px;">+ Add</button>
-        </span>
-      </div>
-      <div id="eventForm" style="display:none;margin-bottom:10px;">
-        <div class="ae-form">
-          <div class="ae-row">
-            <input class="ae-inp" type="text" id="evTitle" placeholder="Birthday, appointment, deadline..."
-              onkeydown="if(event.key==='Enter')addEvent()">
-          </div>
-          <div class="ae-row">
-            <input class="ae-date" type="date" id="evDate" style="flex:1;">
-            <input class="ae-date" type="time" id="evTime" style="flex:1;">
-          </div>
-          <div class="ae-row">
-            <select class="qa-sel" id="evRepeat" style="flex:1;">
-              <option value="none">One-off</option>
-              <option value="yearly">Yearly (birthday etc)</option>
-              <option value="monthly">Monthly</option>
-              <option value="weekly">Weekly</option>
-            </select>
-            <select class="qa-sel" id="evReminder" style="flex:1;">
-              <option value="">No reminder</option>
-              <option value="0">At event time</option>
-              <option value="15">15 min before</option>
-              <option value="30">30 min before</option>
-              <option value="60">1 hour before</option>
-              <option value="1440">1 day before</option>
-            </select>
-          </div>
-          <div class="ae-row">
-            <button class="ae-btn" onclick="addEvent()" style="flex:1;">Add Event</button>
-          </div>
-        </div>
-      </div>
-      <div id="evList"></div>
-    </div>
-
-    <!-- This Week (collapsible) -->
-    <div class="sb-sec">
-      <div class="sb-h clickable" onclick="toggleSbSec('wkList','wkChev')">
-        <span class="sb-h-icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-        </span>
-        This week
-        <span class="sb-h-right">
-          <span class="sb-badge" id="wkBdg">0</span>
-          <span class="sb-chev" id="wkChev">&#9660;</span>
-        </span>
-      </div>
-      <div id="wkList" style="display:none;"></div>
-    </div>
-
-    <!-- PA Strip -->
-    <div class="pa-strip">
-      <div class="pa-icon">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-      </div>
-      <span id="paText">Loading...</span>
     </div>
   </div>
+
+  <!-- Search (hidden until ⌕) -->
+  <div class="search-wrap" id="sbSearchWrap">
+    <div class="inner">
+      <input class="qa-inp" type="text" id="searchInp" placeholder="Search tasks & events..."
+        oninput="searchTasks(this.value)" onfocus="searchTasks(this.value)">
+      <svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>
+      <div id="searchResults" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <main id="main"></main>
+
+    <aside class="rail" id="rail">
+      <!-- Counting down — renderCountdownHero() fills this; hidden when nothing is pinned -->
+      <section id="railCount" hidden></section>
+
+      <!-- Coming up — renderEvents() fills #railUp -->
+      <section>
+        <h3>Coming up <span class="right"><button class="add" type="button" onclick="toggleEventForm()">+ Add</button></span></h3>
+        <div id="eventForm" style="display:none;margin-bottom:14px;">
+          <div class="ae-form">
+            <div class="ae-row">
+              <input class="ae-inp" type="text" id="evTitle" placeholder="Birthday, appointment, deadline..."
+                onkeydown="if(event.key==='Enter')addEvent()">
+            </div>
+            <div class="ae-row">
+              <input class="ae-date" type="date" id="evDate" style="flex:1;">
+              <input class="ae-date" type="time" id="evTime" style="flex:1;">
+            </div>
+            <div class="ae-row">
+              <select class="qa-sel" id="evRepeat" style="flex:1;">
+                <option value="none">One-off</option>
+                <option value="yearly">Yearly (birthday etc)</option>
+                <option value="monthly">Monthly</option>
+                <option value="weekly">Weekly</option>
+              </select>
+              <select class="qa-sel" id="evReminder" style="flex:1;">
+                <option value="">No reminder</option>
+                <option value="0">At event time</option>
+                <option value="15">15 min before</option>
+                <option value="30">30 min before</option>
+                <option value="60">1 hour before</option>
+                <option value="1440">1 day before</option>
+              </select>
+            </div>
+            <div class="ae-row">
+              <button class="ae-btn" onclick="addEvent()" style="flex:1;">Add event</button>
+            </div>
+          </div>
+        </div>
+        <div class="up" id="railUp"></div>
+      </section>
+
+      <!-- This week (S.weekly) — collapsed by default -->
+      <section id="railWeek">
+        <h3 class="clickable" onclick="toggleSbSec('wkList','wkChev')">This week
+          <span class="right"><span class="badge" id="wkBdg">0</span><span class="chev" id="wkChev">&#9660;</span></span>
+        </h3>
+        <div id="wkList" style="display:none;"></div>
+      </section>
+    </aside>
+  </div>
 </div>
+
+<!-- Toast: showPa / showPaWithMove write here -->
+<div class="toast" id="paMsg" role="status" aria-live="polite"></div>
 
 <script>
 // ══════════════════════════════════════════════════
@@ -2163,6 +769,8 @@ const CAT_LABEL = {
   liquidbiz:'Today\'s Work', privatelabel:'Parking Lot',
   life:'Life', admin:'Admin',
 };
+// Row chip labels (the category as a name, not a zone)
+const CAT_NAME = { liquidbiz: 'Liquid Biz', privatelabel: 'Private Label', barkspa: 'Bark Spa', life: 'Life', admin: 'Admin', break: 'Break', evening: 'Evening', parking: 'Parking' };
 
 // ── STATE ──
 const DATA_VERSION = 4;
@@ -2925,12 +1533,13 @@ function dismissCarry(homeDay, tid) {
   save(); render();
 }
 
-// Chip text for a carried row: "YESTERDAY" if it's from yesterday, otherwise
-// the home date (parking carries can be arbitrarily old).
+// Chip text for a carried row ("from Sun"): the home weekday when it's within the
+// last week, otherwise the home date (parking carries can be arbitrarily old).
 function carryChipLabel(home) {
-  const y = new Date(); y.setDate(y.getDate() - 1);
-  if (home === toDateStr(y)) return 'YESTERDAY';
-  return new Date(home + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase();
+  const d = new Date(home + 'T12:00:00');
+  const age = Math.round((new Date(today() + 'T12:00:00') - d) / 86400000);
+  if (age <= 6) return d.toLocaleDateString('en-GB', { weekday: 'short' });
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 function toggleDayOff(dayStr) {
@@ -2999,22 +1608,19 @@ function toggle(tid, day) {
       const el = document.querySelector('.tck.done[onclick*="' + tid + '"]');
       if (el) {
         el.classList.add('just-done');
-        const taskRow = el.closest('.task');
+        const taskRow = el.closest('.row');
         if (taskRow) taskRow.classList.add('just-completed');
         setTimeout(() => {
           el.classList.remove('just-done');
           if (taskRow) taskRow.classList.remove('just-completed');
         }, 600);
       }
-      // NN chip pop
-      const chip = document.querySelector('.nn-chip[onclick*="' + tid + '"]');
-      if (chip) { chip.classList.add('just-done'); setTimeout(() => chip.classList.remove('just-done'), 300); }
     }, 20);
     // All non-negotiables complete banner
     const nnD = S.done[viewDay] || {};
     if (NN.every(n => nnD[n.link])) {
       const banner = document.createElement('div');
-      banner.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--done);color:#fff;padding:12px 24px;border-radius:10px;font-weight:600;font-size:14px;box-shadow:0 4px 20px rgba(90,158,124,0.4);animation:fadeUp 0.3s ease;';
+      banner.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--done);color:var(--on-done);padding:12px 24px;border-radius:10px;font-weight:600;font-size:14px;box-shadow:0 4px 20px var(--done-bg);animation:fadeUp 0.3s ease;';
       banner.textContent = 'All non-negotiables done! Streak: ' + streakCount() + ' days';
       document.body.appendChild(banner);
       setTimeout(() => { banner.style.opacity = '0'; banner.style.transition = 'opacity 0.5s'; setTimeout(() => banner.remove(), 500); }, 2500);
@@ -3192,16 +1798,21 @@ function parseDayName(text) {
   return null;
 }
 
-function paAdd() {
-  const inp = document.getElementById('qaInp');
-  const text = inp.value.trim();
-  if (!text) return;
+// ── THE ONE ADD PATH ──
+// Every add box routes through here (the day list, the parking lot). Parses the
+// text exactly as the old sidebar Quick Add did — "every <day>" → S.recurring,
+// "this week" → S.weekly, "today"/"tomorrow"/day names → that day's list — and
+// otherwise drops the task on viewDay's `zone`. Returns what it created:
+//   { kind:'recurring', id } | { kind:'weekly', id, day } | { kind:'custom', id, day, zone }
+function addTaskFromText(text, opts = {}) {
+  const zone = opts.zone || 'list';
+  let cat = opts.cat || 'auto';
+  let dur = opts.dur != null ? opts.dur : 30;   // 30 = the old paAdd/listQuickAdd default
+  const when = opts.when || 'auto';
+  text = (text || '').trim();
+  if (!text) return null;
 
-  let cat = document.getElementById('qaCat').value;
-  let dur = parseInt(document.getElementById('qaDur').value)||30;
-  const when = document.getElementById('qaWhen').value;
-
-  if (cat === 'auto') cat = detectCat(text) || 'life';
+  if (cat === 'auto') cat = detectCat(text) || (zone === 'parking' ? 'privatelabel' : 'life');
 
   // Parse duration from text (overrides the manual input if found)
   const parsedDur = parseDuration(text);
@@ -3214,13 +1825,13 @@ function paAdd() {
     const prefix = everyMatch[1].slice(0,3).toLowerCase();
     const dow = dayMap[prefix];
     const cleanText = text.replace(everyMatch[0], '').replace(/\s{2,}/g,' ').trim();
-    S.recurring.push({ id: 'rec'+uid(), text: cleanText || text, cat, dur, dayOfWeek: dow });
+    const recId = 'rec'+uid();
+    S.recurring.push({ id: recId, text: cleanText || text, cat, dur, dayOfWeek: dow });
     save();
     const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     showPa(`Recurring task added: "${cleanText||text}" every ${dayNames[dow]}. ${dur}min.`);
-    inp.value = '';
     render();
-    return;
+    return { kind: 'recurring', id: recId };
   }
 
   // Check for specific time in text
@@ -3238,14 +1849,21 @@ function paAdd() {
     textDay = dayFromName.day;
     cleanText = cleanText.replace(new RegExp('\\b' + dayFromName.match + '\\b', 'i'), '');
   }
+  // "this week" → weekly list (same as the old When = This week selector)
+  let weekWord = false;
+  if (!textDay && /\bthis\s+week\b/i.test(cleanText)) weekWord = true;
+  // Only strip the phrase when it actually routes to the weekly list — a timed
+  // task like "call bank this week 3pm" keeps its full title.
+  const weekRoute = (when === 'week' || weekWord) && !textDay && !parsedTime;
+  if (weekRoute) cleanText = cleanText.replace(/\bthis\s+week\b/gi, '');
   // Also strip duration and time phrases from text
   cleanText = cleanText.replace(/\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|mins?|minutes?)\b/gi, '');
   cleanText = cleanText.replace(/\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, '');
   cleanText = cleanText.replace(/\s{2,}/g, ' ').trim();
   if (!cleanText) cleanText = text; // fallback if everything was stripped
 
-  // ── "This week" → add as a WEEKLY TASK (sidebar), not a day-specific custom task ──
-  if (when === 'week' && !textDay && !parsedTime) {
+  // ── "This week" → add as a WEEKLY TASK (rail), not a day-specific custom task ──
+  if (weekRoute) {
     // Find the lightest remaining weekday (fewest open tasks)
     const mon = getMon(new Date());
     const wkDays = getWeek(mon).map(d=>d.toLocalDate()).filter(d => !isWeekend(d));
@@ -3262,14 +1880,12 @@ function paAdd() {
     save();
     const dayLbl = new Date(bestWkDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'});
     showPaWithMove(wkId, `Added "${cleanText}" to weekly list on ${dayLbl}. ${dur}min.`);
-    inp.value = '';
     render();
-    return;
+    return { kind: 'weekly', id: wkId, day: bestWkDay };
   }
 
-  // Check for "today"/"tomorrow" in text first, then day names, then the
-  // When selector. No block routing any more \u2014 everything lands on the day's
-  // flat list.
+  // "today"/"tomorrow" in text first, then day names, then the When option.
+  // No block routing any more — everything lands on the day's flat list.
   let day = textDay;
   if (!day) {
     if (when === 'tomorrow') day = literalTomorrow();
@@ -3277,32 +1893,45 @@ function paAdd() {
   }
 
   if (!S.custom[day]) S.custom[day] = {};
-  if (!S.custom[day].list) S.custom[day].list = [];
+  if (!S.custom[day][zone]) S.custom[day][zone] = [];
   const taskId = 'ct'+uid();
-  S.custom[day].list.push({ id: taskId, text: cleanText, done:false, cat, dur });
+  S.custom[day][zone].push({ id: taskId, text: cleanText, done:false, cat, dur });
 
   save();
-
-  const dayLbl = day===today() ? 'today' :
-    day===literalTomorrow() ? 'tomorrow' :
-    new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
-  showPa(`Added to ${dayLbl} (${dur}min). Viewing now.`);
 
   // Track for highlight animation
   _lastAddedTaskId = taskId;
 
-  inp.value = '';
-  // Navigate to the day where task was added (update week offset too)
-  viewDay = day;
-  const _tMon = getMon(new Date(day + 'T12:00:00'));
-  const _cMon = getMon(new Date());
-  viewWeekOffset = Math.round((_tMon - _cMon) / 86400000 / 7);
+  if (day !== viewDay) {
+    const dayLbl = day===today() ? 'today' :
+      day===literalTomorrow() ? 'tomorrow' :
+      new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
+    showPa(`Added to ${dayLbl} (${dur}min). Viewing now.`);
+    // Navigate to the day where the task was added (update week offset too)
+    viewDay = day;
+    const _tMon = getMon(new Date(day + 'T12:00:00'));
+    const _cMon = getMon(new Date());
+    viewWeekOffset = Math.round((_tMon - _cMon) / 86400000 / 7);
+  }
   render();
+  return { kind: 'custom', id: taskId, day, zone };
+}
 
-  // Scroll the day card into view, then clear the highlight tracker
+// Enter in a .list add box. Same-day adds keep focus in that box; anything that
+// routed elsewhere (other day, recurring, weekly) has already jumped + toasted.
+function listQuickAdd(zone, inp) {
+  const text = inp.value.trim();
+  if (!text) return;
+  const res = addTaskFromText(text, { zone });
+  if (!res) return;
   setTimeout(() => {
-    const cardEl = document.querySelector('.sd-card[data-zone="list"]');
-    if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (res.kind === 'custom' && res.day === viewDay) {
+      const newInp = document.querySelector(`.list[data-zone="${zone}"] .bk-add-inp`);
+      if (newInp) newInp.focus();
+    } else {
+      const cardEl = document.querySelector('.list[data-zone="list"]');
+      if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     setTimeout(() => { _lastAddedTaskId = null; }, 1600);
   }, 50);
 }
@@ -3324,7 +1953,7 @@ function showPaWithMove(taskId, msg) {
   let btns = wk.map((d, i) => {
     const dk = d.toLocalDate();
     const isActive = t && dk === t.day;
-    return `<span onclick="moveWeeklyTask('${taskId}','${dk}')" style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:5px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:${isActive?'700':'400'};background:${isActive?'var(--accent)':'var(--s3)'};color:${isActive?'#0c0d11':'var(--muted)'};">${dayLabels[i]}</span>`;
+    return `<span onclick="moveWeeklyTask('${taskId}','${dk}')" style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:5px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:${isActive?'700':'400'};background:${isActive?'var(--accent)':'var(--s3)'};color:${isActive?'var(--on-accent)':'var(--muted)'};">${dayLabels[i]}</span>`;
   }).join('');
 
   el.innerHTML = `${msg}<div style="display:flex;gap:3px;margin-top:6px;align-items:center;"><span style="font-size:9px;color:var(--muted);margin-right:4px;">Move:</span>${btns}</div>`;
@@ -3363,7 +1992,7 @@ function editTask(type, bid, tid) {
 
   const modal = document.createElement('div');
   modal.id = 'task-edit-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:var(--overlay);';
   modal.innerHTML = `
     <div style="background:var(--s1);border:1px solid var(--border2);border-radius:12px;padding:20px;width:380px;max-width:90vw;">
       <div class="modal-eyebrow">Edit task</div>
@@ -3489,7 +2118,7 @@ function editEvent(id) {
 
   const modal = document.createElement('div');
   modal.id = 'ev-edit-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:var(--overlay);';
   modal.innerHTML = `
     <div style="background:var(--s1);border:1px solid var(--border2);border-radius:12px;padding:20px;width:380px;max-width:90vw;">
       <div class="modal-eyebrow">Edit event</div>
@@ -3682,39 +2311,22 @@ function unpinCountdown(id) {
   save(); render();
 }
 
-function renderCountdownCard(target) {
-  const { ev, evDate, diffDays, pinnedAt } = target;
-
-  // Runway bar: empty when pinned -> full on the day. Guard zero/negative span.
-  const pinDate = new Date((pinnedAt || today()) + 'T00:00:00');
-  const spanDays = Math.round((evDate - pinDate) / 86400000);
-  let pct = 0;
-  if (spanDays > 0) {
-    pct = Math.max(0, Math.min(100, Math.round(((spanDays - diffDays) / spanDays) * 100)));
-  } else if (diffDays <= 0) {
-    pct = 100;
-  }
-
+function renderCountdownRow(target) {
+  const { ev, evDate, diffDays } = target;
   const num = diffDays === 0 ? 'Today' : diffDays;
-  const unit = diffDays === 0 ? '' : (diffDays === 1 ? 'Day to go' : 'Days to go');
-  const loc = ev.location ? `<span class="cd-hero-loc">&middot; ${ev.location}</span>` : '';
   const dateStr = evDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-
-  return `
-    <div class="cd-hero">
-      <span class="cd-hero-unpin" title="Unpin countdown" onclick="unpinCountdown('${ev.id}')">&times;</span>
-      <div class="cd-hero-label">&#9203; ${ev.text}${loc}</div>
-      <div class="cd-hero-body">
-        <div class="cd-hero-num">${num}</div>
-        ${unit ? `<div class="cd-hero-unit">${unit}</div>` : ''}
-      </div>
-      <div class="cd-hero-foot">
-        <div class="cd-hero-bar"><div class="cd-hero-bar-fill" style="width:${pct}%"></div></div>
-        <span class="cd-hero-date">${dateStr}</span>
-      </div>
+  const bits = [dateStr];
+  if (ev.location) bits.push(ev.location);
+  if (diffDays >= 7) { const w = Math.round(diffDays / 7); bits.push(`${w} week${w === 1 ? '' : 's'}`); }
+  return `<div class="count">
+      <span class="n mono">${num}</span>
+      <span class="l"><b>${ev.text}</b><small>${bits.join(' · ')}</small></span>
+      <button class="unpin" type="button" title="Unpin countdown" onclick="unpinCountdown('${ev.id}')">&times;</button>
     </div>`;
 }
 
+// Counting down (rail). Also the stale-pin cleanup: pins whose event was deleted
+// or whose one-off date has passed are dropped (and saved) here, as before.
 function renderCountdownHero() {
   const pins = S.pinnedCountdowns || [];
   const targets = [];
@@ -3728,10 +2340,13 @@ function renderCountdownHero() {
     S.pinnedCountdowns = pins.filter(p => !stale.includes(p.eventId));
     save();
   }
-  if (!targets.length) return '';
+  const el = document.getElementById('railCount');
+  if (!el) return;
+  if (!targets.length) { el.hidden = true; el.innerHTML = ''; return; }
   // Nearest event first.
   targets.sort((a, b) => a.diffDays - b.diffDays);
-  return `<div class="cd-hero-row">${targets.map(renderCountdownCard).join('')}</div>`;
+  el.hidden = false;
+  el.innerHTML = `<h3>Counting down</h3>` + targets.map(renderCountdownRow).join('');
 }
 
 // ── STREAK ──
@@ -3785,7 +2400,7 @@ function cycleDay(id, el) {
 
   const picker = document.createElement('div');
   picker.id = 'day-picker';
-  picker.style.cssText = 'position:fixed;z-index:999;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:4px;box-shadow:0 4px 16px rgba(0,0,0,0.5);';
+  picker.style.cssText = 'position:fixed;z-index:999;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:4px;box-shadow:var(--shadow-pop);';
   const rect = el.getBoundingClientRect();
   picker.style.top = (rect.bottom + 4) + 'px';
   picker.style.left = (rect.left - 40) + 'px';
@@ -3824,6 +2439,7 @@ function rmWk(id) {
 
 // ── RENDER ──
 function render() {
+  renderTop();
   renderMain();
   renderNn();
   renderEvents();
@@ -3832,127 +2448,130 @@ function render() {
   renderPaText();
 }
 
-function renderMain() {
-  const el = document.getElementById('main');
+// Top bar: date label (click → calendar), week strip, and the view-dependent
+// utility buttons (TODAY when off this week, Day off on weekdays). The bar itself
+// is static markup in <body>; only these three slots are re-rendered.
+function renderTop() {
   const baseMon = getMon(new Date());
   const mon = new Date(baseMon);
   mon.setDate(mon.getDate() + viewWeekOffset * 7);
   const wk = getWeek(mon);
   const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const isThisWeek = viewWeekOffset === 0;
+  const vd = new Date(viewDay + 'T12:00:00');
 
-  const wkStart = wk[0].toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-  const wkEnd = wk[6].toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-
-  const h = new Date().getHours();
-  let greet = viewDay !== today() ?
-    new Date(viewDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})+"'s Plan" :
-    h<12 ? 'Good morning, Ben' : h<17 ? 'Good afternoon, Ben' : 'Good evening, Ben';
-  const dateLine = new Date(viewDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-
-  let htm = `
-    <div class="hdr">
-      <div class="greeting">${greet}</div>
-      <div class="date-line" style="display:flex;align-items:center;gap:8px;position:relative;flex-wrap:wrap;">
-        <span style="cursor:pointer;" onclick="toggleCalendar()">${dateLine}</span>
-        <span onclick="toggleCalendar()" style="cursor:pointer;font-size:8px;color:var(--muted);transition:color .12s;" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--muted)'">&#9660;</span>
-        ${!isThisWeek ? `<button class="hdr-link" onclick="goThisWeek()">Today</button>` : ''}
-        ${(()=>{
-          const vdDow = new Date(viewDay+'T12:00:00').getDay();
-          const isRealWeekday = vdDow !== 0 && vdDow !== 6;
-          if (!isRealWeekday) return '';
-          const off = isDayOff(viewDay);
-          return `<button class="hdr-link${off?' on':''}" onclick="toggleDayOff('${viewDay}')" onmouseenter="this.style.borderColor='var(--accent-border)'" onmouseleave="this.style.borderColor='${off?'rgba(196,80,80,0.3)':'var(--border)'}'">${off?'Back to work':'Day off'}</button>`;
-        })()}
-        <a class="hdr-link" href="https://book.squareup.com/appointments/nwad0qj8ufr98p/location/LP6ABYFXRWNDT/availability" target="_blank" rel="noopener" title="Book a haircut" onmouseenter="this.style.borderColor='var(--accent-border)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">&#128136; Haircut</a>
-        <div id="calendarDrop"></div>
-      </div>
-      <div class="day-nav">
-        <button class="day-btn" onclick="changeWeek(-1)" title="Previous week" style="padding:5px 8px;">&#8592;</button>
-        ${wk.map((d,i)=>{
-          const dk = d.toLocalDate();
-          const isTd = dk===today();
-          const isAct = dk===viewDay;
-          const hasTasks = S.weekly.some(w=>w.day===dk&&!w.done) || Object.values(S.custom[dk]||{}).some(a=>Array.isArray(a)&&a.length>0) || getUpcomingEvents().some(e=>e.nextDate.toLocalDate()===dk);
-          return `<button class="day-btn ${isAct?'active':''} ${hasTasks&&!isAct?'has-tasks':''}" onclick="switchDay('${dk}')">${isTd?'Today':dayNames[i]}</button>`;
-        }).join('')}
-        <button class="day-btn" onclick="changeWeek(1)" title="Next week" style="padding:5px 8px;">&#8594;</button>
-      </div>
-    </div>`;
-
-  // ── PINNED COUNTDOWN HERO ──
-  htm += renderCountdownHero();
-
-  // ── DATE-CONTEXT CARD (any non-today day — planning ahead / looking back) ──
-  if (viewDay !== today()) {
-    const vd = new Date(viewDay + 'T12:00:00');
-    const wdName = vd.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-    const isPastDay = viewDay < today();
-    const dayTasks = listTasks(viewDay);
-    const dDone = dayTasks.filter(t => isDone(t.id, viewDay)).length;
-    const label = isPastDay ? 'Looking back' : 'Planning ahead';
-    let sub;
-    if (isPastDay) sub = dayTasks.length ? `${dDone}/${dayTasks.length} tasks done that day.` : 'Nothing was scheduled.';
-    else if (dayTasks.length) sub = `${dayTasks.length} task${dayTasks.length > 1 ? 's' : ''} planned${dDone ? ` · ${dDone} already done` : ''}.`;
-    else sub = 'Nothing planned yet — add something below.';
-    htm += `
-      <div class="focus-card focus-ctx">
-        <div class="focus-label"><div class="focus-pulse"></div>${label}</div>
-        <div class="focus-title">${wdName}</div>
-        <div class="focus-sub">${sub}</div>
-      </div>`;
+  const dateEl = document.getElementById('topDate');
+  if (dateEl) {
+    const wd = vd.toLocaleDateString('en-GB', { weekday: 'long' });
+    const dm = vd.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+    const yr = vd.getFullYear() !== new Date().getFullYear() ? ' ' + vd.getFullYear() : '';
+    dateEl.innerHTML = `${wd} <span>${dm}${yr}</span>`;
   }
 
-  const isWknd = isWeekend(viewDay);
-
-  // Short-day pickup banner + NN strip — only on weekdays
-  if (!isWknd) {
-    htm += shortDayCapacityHtml(viewDay);
-    htm += nnStripHtml(viewDay);
+  const weekEl = document.getElementById('week');
+  if (weekEl) {
+    const upcomingDays = new Set(getUpcomingEvents().map(e => e.nextDate.toLocalDate()));
+    weekEl.innerHTML =
+      `<button class="day" type="button" onclick="changeWeek(-1)" title="Previous week">&#8592;</button>` +
+      wk.map((d, i) => {
+        const dk = d.toLocalDate();
+        const isTd = dk === today();
+        const isAct = dk === viewDay;
+        const hasTasks = S.weekly.some(w => w.day === dk && !w.done)
+          || Object.values(S.custom[dk] || {}).some(a => Array.isArray(a) && a.length > 0)
+          || upcomingDays.has(dk);
+        return `<button class="day ${isAct ? 'active' : ''} ${hasTasks && !isAct ? 'has-tasks' : ''}" type="button" onclick="switchDay('${dk}')">${isTd ? 'Today' : dayNames[i]}</button>`;
+      }).join('') +
+      `<button class="day" type="button" onclick="changeWeek(1)" title="Next week">&#8594;</button>`;
+    // Mobile: the strip scrolls horizontally — centre the active day inside the
+    // strip only (direct scrollLeft, so document scroll is never touched).
+    const dbtn = weekEl.querySelector('.day.active');
+    if (dbtn) weekEl.scrollLeft = dbtn.offsetLeft - (weekEl.clientWidth - dbtn.offsetWidth) / 2;
   }
 
-  htm += '<div class="blocks">';
+  const btns = document.getElementById('topBtns');
+  if (btns) {
+    let h = '';
+    if (!isThisWeek) h += `<button class="hdr-link" type="button" onclick="goThisWeek()">Today</button>`;
+    const vdDow = vd.getDay();
+    if (vdDow !== 0 && vdDow !== 6) {
+      const off = isDayOff(viewDay);
+      h += `<button class="hdr-link${off ? ' on' : ''}" type="button" onclick="toggleDayOff('${viewDay}')">${off ? 'Back to work' : 'Day off'}</button>`;
+    }
+    btns.innerHTML = h;
+  }
+}
 
-  // ── THE DAY: one flat tick-list + parking lot ──
+function renderMain() {
+  const el = document.getElementById('main');
+  if (!el) return;
+  // Stale-pin cleanup lives in renderCountdownHero (it may save()); it now
+  // paints into the rail, so run it here where it always ran, before the day.
+  renderCountdownHero();
+
+  let htm = renderNowBlock(viewDay);
+  if (!isWeekend(viewDay)) htm += shortDayCapacityHtml(viewDay);
   htm += renderDayCard(viewDay);
   htm += renderParkingLot(viewDay);
-
-  // ── EOD NUDGE (today only) ──
-  if (viewDay === today()) {
-    const tasks = listTasks(viewDay);
-    const carries = getCarryTasks();
-    // Carries can now be done-but-still-shown (ticked today), so count only open ones.
-    const open = tasks.filter(t => !isDone(t.id, viewDay)).length
-               + carries.filter(t => !isDone(t.id, t._home)).length;
-    if (tasks.length + carries.length > 0) {
-      htm += `<div class="sd-nudge">&#128172; ${open > 0
-        ? `${open} to go. Tick them off, then you're done for the day.`
-        : 'All done. Clear day, clear head.'}</div>`;
-    }
-  }
-
-  // Quick inline add
-  const qaPlaceholder = `Add a task to ${viewDay===today()?'today':new Date(viewDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})}...`;
-  htm += `<div class="quick-add" onclick="focusQuickAdd()">
-    <span class="quick-add-icon">+</span>
-    <input class="quick-add-inp" id="quickAddInp" type="text" placeholder="${qaPlaceholder}"
-      onkeydown="if(event.key==='Enter')quickAdd()" onfocus="this.parentElement.classList.add('focused')" onblur="this.parentElement.classList.remove('focused')">
-  </div>`;
-
-  htm += '</div>';
   el.innerHTML = htm;
-
-  // Mobile: day-nav scrolls horizontally — centre the active day chip inside the
-  // strip only. Direct scrollLeft (not scrollIntoView) so document scroll is never
-  // touched; on desktop .day-nav has no overflow so scrollLeft stays 0.
-  const nav = el.querySelector('.day-nav');
-  const dbtn = nav && nav.querySelector('.day-btn.active');
-  if (nav && dbtn) nav.scrollLeft = dbtn.offsetLeft - (nav.clientWidth - dbtn.offsetWidth) / 2;
-
   document.title = 'Daily OS';
 }
 
-// ── DAY CARD (the new core) ──
+// The day's events, sorted by time (all-day first), for the Now line and the
+// planning-ahead card. Past = time has passed today.
+function dayEventSpans(day) {
+  const isToday = day === today();
+  const evs = getUpcomingEvents()
+    .filter(e => e.nextDate.toLocalDate() === day)
+    .sort((a, b) => (a.time ? timeToMin(a.time) : -1) - (b.time ? timeToMin(b.time) : -1));
+  return evs.map(ev => {
+    const past = isToday && ev.time && timeToMin(ev.time) < getNow();
+    const loc = ev.location ? ` <span class="soft">· ${ev.location}</span>` : '';
+    const bd = ev.mufc ? '<span class="bd">MUFC</span>' : ev.holiday ? '<span class="bd hol">HOL</span>' : '';
+    return `<span class="${past ? 'past' : ''}" onclick="editEvent('${ev.id}')" title="Edit event"><span class="t mono">${ev.time || 'all day'}</span>${ev.mufc ? '⚽ ' : ''}${ev.text}${loc}${bd}</span>`;
+  }).join('');
+}
+
+// ── NOW — the one answer ──
+// Today: the first open item in list order (carries first), or "Clear day".
+// Other days: planning ahead / looking back, same slot, same styling.
+function renderNowBlock(day) {
+  const isToday = day === today();
+  const tasks = listTasks(day);
+  const doneCount = tasks.filter(t => isDone(t.id, day)).length;
+  let eyebrow, h1, then;
+  if (isToday) {
+    const carries = getCarryTasks();
+    const firstOpen = carries.find(t => !isDone(t.id, t._home)) || tasks.find(t => !isDone(t.id, day));
+    eyebrow = 'Now';
+    if (firstOpen) {
+      const from = firstOpen._home && firstOpen._home !== day
+        ? ` <span class="soft">— carried from ${new Date(firstOpen._home + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}</span>` : '';
+      h1 = firstOpen.text + from;
+    } else {
+      h1 = `Clear day. <span class="soft">${doneCount} done, nothing waiting.</span>`;
+    }
+    then = dayEventSpans(day);
+  } else {
+    const vd = new Date(day + 'T12:00:00');
+    const isPastDay = day < today();
+    eyebrow = isPastDay ? 'Looking back' : 'Planning ahead';
+    h1 = vd.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    let sub;
+    if (isPastDay) sub = tasks.length ? `${doneCount}/${tasks.length} tasks done that day.` : 'Nothing was scheduled.';
+    else if (tasks.length) sub = `${tasks.length} task${tasks.length > 1 ? 's' : ''} planned${doneCount ? ` · ${doneCount} already done` : ''}.`;
+    else sub = isDayOff(day) ? 'Day off. Nothing planned.' : 'Nothing planned yet — add something below.';
+    then = `<span class="plain">${sub}</span>` + dayEventSpans(day);
+  }
+  return `
+    <section class="now">
+      <div class="eyebrow">${eyebrow}</div>
+      <h1>${h1}</h1>
+      ${then ? `<div class="then">${then}</div>` : ''}
+    </section>`;
+}
+
+// ── TODAY (the day's flat tick-list) ──
 function renderDayCard(day) {
   const isToday = day === today();
   const tasks = listTasks(day);
@@ -3960,42 +2579,59 @@ function renderDayCard(day) {
   const doneCount = tasks.filter(t => isDone(t.id, day)).length;
   const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
   const title = isToday ? 'Today' : new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long' });
-  const dayEvents = getUpcomingEvents()
-    .filter(e => e.nextDate.toLocalDate() === day)
-    .sort((a, b) => (a.time ? timeToMin(a.time) : -1) - (b.time ? timeToMin(b.time) : -1));
+  const showNn = !isWeekend(day);
+  const nnDone = S.done[day] || {};
 
-  let htm = `<div class="sd-card" data-zone="list" ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'list')">
-    <div class="sd-head"><span class="sd-title">${title}</span><span class="sd-count">${doneCount}/${tasks.length}</span></div>
-    <div class="sd-progress"><i style="width:${pct}%"></i></div>`;
-  for (const ev of dayEvents) htm += sdEventRow(ev);
-  for (const t of carries) htm += sdTaskRow(t, 'list', { carry: true });
-  // Group ticked tasks first — display-only; S.order must stay untouched
-  // because moveOrReorder rebuilds it from listTasks() order on every drag.
-  const grouped = [...tasks].sort((a, b) => Number(isDone(b.id, day)) - Number(isDone(a.id, day)));
-  for (const t of grouped) htm += sdTaskRow(t, 'list', {});
+  // Row order: done (compact) → Daily → carries → pending. Display-only sort;
+  // S.order must stay untouched (moveOrReorder rebuilds it from listTasks()).
+  const doneCarries = carries.filter(t => isDone(t.id, t._home));
+  const openCarries = carries.filter(t => !isDone(t.id, t._home));
+  const doneTasks = tasks.filter(t => isDone(t.id, day));
+  const openTasks = tasks.filter(t => !isDone(t.id, day));
+  const nnOpen = showNn ? NN.filter(n => !nnDone[n.link]) : [];
+  const nnDoneRows = showNn ? NN.filter(n => nnDone[n.link]) : [];
+
+  let htm = `<section class="today">
+    <div class="sec-head"><h2>${title}</h2><span class="count">${doneCount} of ${tasks.length} done</span></div>
+    <div class="progress"><i style="width:${pct}%"></i></div>
+    <div class="list" data-zone="list" ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'list')">`;
+  for (const n of nnDoneRows) htm += nnRow(n, true);
+  for (const t of doneCarries) htm += sdTaskRow(t, 'list', { carry: true });
+  for (const t of doneTasks) htm += sdTaskRow(t, 'list', {});
+  for (const n of nnOpen) htm += nnRow(n, false);
+  for (const t of openCarries) htm += sdTaskRow(t, 'list', { carry: true });
+  for (const t of openTasks) htm += sdTaskRow(t, 'list', {});
   if (!tasks.length && !carries.length) {
-    htm += `<div class="sd-empty">${isDayOff(day) ? 'Day off. Enjoy.' : 'Nothing on the list yet.'}</div>`;
+    htm += `<div class="sd-empty">${isDayOff(day) ? 'Day off. Enjoy.' : (showNn ? 'Nothing else on the list yet.' : 'Nothing on the list yet.')}</div>`;
   }
-  htm += `<div class="bk-add" onclick="this.querySelector('input').focus()">
-      <span class="bk-add-plus">+</span>
-      <input class="bk-add-inp" type="text" placeholder="Add to ${isToday ? 'today' : 'this day'}..."
-        onkeydown="if(event.key==='Enter'){listQuickAdd('list',this);event.stopPropagation();}"
-        onfocus="this.parentElement.classList.add('focused')"
-        onblur="this.parentElement.classList.remove('focused')">
-    </div>
-  </div>`;
+  const ph = isToday
+    ? 'Add to today — try &ldquo;Call mum tomorrow 10 mins&rdquo;'
+    : `Add to ${title}&hellip;`;
+  htm += addBoxHtml('list', ph);
+  htm += `</div></section>`;
   return htm;
 }
 
-function sdEventRow(ev) {
-  const cls = ev.mufc ? ' mufc' : ev.holiday ? ' holiday' : '';
-  const badge = ev.mufc ? 'MAN UTD' : ev.holiday ? 'HOLIDAY' : 'EVENT';
-  const locStr = ev.location ? ` &middot; ${ev.location}` : '';
-  return `<div class="sd-ev${cls}" onclick="editEvent('${ev.id}')">
-    <span class="sd-ev-time">${ev.time || 'ALL&nbsp;DAY'}</span>
-    <span class="sd-ev-name">${ev.mufc ? '⚽ ' : ''}${ev.text}${locStr ? `<span style="color:var(--muted);font-size:11px;">${locStr}</span>` : ''}</span>
-    <span class="sd-ev-badge">${badge}</span>
-  </div>`;
+// The one add box (last row of a .list). Enter → addTaskFromText via listQuickAdd.
+function addBoxHtml(zone, placeholder) {
+  return `<div class="bk-add" onclick="this.querySelector('input').focus()">
+      <span class="bk-add-plus">+</span>
+      <input class="bk-add-inp" type="text" placeholder="${placeholder}"
+        onkeydown="if(event.key==='Enter'){listQuickAdd('${zone}',this);event.stopPropagation();}"
+        onfocus="this.parentElement.classList.add('focused')"
+        onblur="this.parentElement.classList.remove('focused')">
+    </div>`;
+}
+
+// Daily (non-negotiable) row — pinned, ticks through the existing toggle(link).
+function nnRow(n, d) {
+  return `
+    <div class="row pin ${d ? 'done' : ''}">
+      <span class="sd-grip">&#8942;&#8942;</span>
+      <div class="tck ${d ? 'done' : ''}" onclick="toggle('${n.link}')"></div>
+      <div class="t-content"><div class="t-text ${d ? 'done' : ''}">${n.text}</div></div>
+      <div class="meta"><span class="chip daily">Daily</span></div>
+    </div>`;
 }
 
 // One task row. `zone` is 'list' or 'parking'; opts.carry marks a carried-over
@@ -4005,8 +2641,6 @@ function sdTaskRow(t, zone, opts = {}) {
   const d = isDone(t.id, home);
   const type = t._type || 'c';
   const justAdded = t.id === _lastAddedTaskId;
-  const repeatTag = type === 'rec' ? '<span class="t-rep">REPEATS</span>' : '';
-  const carryChip = opts.carry ? `<span class="sd-carry">&#8617; ${carryChipLabel(t._home)}</span>` : '';
   const rmBtn = opts.carry
     ? `<span class="t-rm" title="Stop carrying" onclick="event.stopPropagation();dismissCarry('${home}','${t.id}')">&times;</span>`
     : type === 'c' ? (t._template ? '' : `<span class="t-rm" onclick="event.stopPropagation();rmCustom('${zone}','${t.id}')">&times;</span>`)
@@ -4016,69 +2650,64 @@ function sdTaskRow(t, zone, opts = {}) {
   const dragAttrs = (opts.carry || t._template) ? '' :
     `draggable="true" ondragstart="dragTask(event,'${zone}','${type}','${t.id}')" ondragover="dragOverRow(event)" ondragleave="dragLeaveRow(event)" ondrop="dropOnRow(event,'${zone}','${t.id}')"`;
   const editAttr = t._template ? '' : `style="cursor:pointer;" onclick="editTask('${type}','${zone}','${t.id}')"`;
+  // Meta: [from Ddd] [category ·dot] [30m] [↻]
+  let meta = '';
+  if (opts.carry) meta += `<span class="chip carry">from ${carryChipLabel(t._home)}</span>`;
+  if (t.cat && CAT_NAME[t.cat]) meta += `<span class="cat" style="--dot:var(--c-${t.cat})">${CAT_NAME[t.cat]}</span>`;
+  if (t.dur) meta += `<span class="dur mono">${t.dur}m</span>`;
+  if (type === 'rec') meta += `<span class="rep" title="Repeats every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][t.dayOfWeek] || 'week'}">&#8635;</span>`;
   return `
-    <div class="task ${justAdded ? 'just-added-task' : ''}" ${dragAttrs}>
+    <div class="row ${d ? 'done' : ''} ${justAdded ? 'just-added-task' : ''}" ${dragAttrs}>
       <span class="sd-grip">&#8942;&#8942;</span>
       <div class="tck ${d ? 'done' : ''}" onclick="toggle('${t.id}','${home}')"></div>
-      <div class="sd-cat cat-bg-${t.cat || 'life'}"></div>
       <div class="t-content" ${editAttr}>
-        <div class="t-text ${d ? 'done' : ''}">${t.text}${repeatTag}</div>
+        <div class="t-text ${d ? 'done' : ''}">${t.text}</div>
         ${t.notes ? `<div class="t-bullets">${t.notes.split('\n').filter(l => l.trim()).map(l => `<div class="t-bullet">${l.trim()}</div>`).join('')}</div>` : ''}
       </div>
-      ${carryChip}
+      ${meta ? `<div class="meta">${meta}</div>` : ''}
       ${moveBtn}
       ${rmBtn}
     </div>`;
-}
-
-function nnStripHtml(day) {
-  // Compact chip strip rendered above Today's Work.
-  const doneMap = S.done[day] || {};
-  let html = `<div class="nn-strip">
-    <div class="nn-strip-label">Daily</div>
-    <div class="nn-strip-items">`;
-  for (const n of NN) {
-    const d = !!doneMap[n.link];
-    html += `<div class="nn-chip ${d?'done':''}" onclick="toggle('${n.link}')">
-      <div class="nn-chip-ck">${d?'✓':''}</div>
-      <span>${n.text}</span>
-    </div>`;
-  }
-  html += `</div></div>`;
-  return html;
 }
 
 function parkingTasks(day) {
   return ((S.custom[day] || {})['parking']) || [];
 }
 
+// ── PARKING LOT ──
+// Empty (no user-parked tasks, no parking carries): one quiet line; "+ park…"
+// reveals the add box. Otherwise a second .list card under "Parking lot · optional".
 function renderParkingLot(day) {
-  // Merge template parking tasks with user-added ones (template ones are static).
   const userTasks = parkingTasks(day);
   const carries = day === today() ? getParkingCarries() : [];
+  const noAdd = day !== today();   // parking is added to today only (as before)
+  const dropAttrs = noAdd ? '' : `ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'parking')"`;
+  const addBox = noAdd ? '' : addBoxHtml('parking', 'Park something for later&hellip;');
+
+  if (!userTasks.length && !carries.length) {
+    return `<div class="parking" ${dropAttrs}><b>Parking lot</b><span class="n">nothing parked</span>${noAdd ? '' : `<button type="button" onclick="showParkAdd()">+ park&hellip;</button>`}</div>
+      <div class="list" data-zone="parking" id="parkAdd" hidden style="margin-top:10px;" ${dropAttrs}>${addBox}</div>`;
+  }
+  // Merge template parking tasks with user-added ones (template ones are static).
   const allTasks = [
     ...PARKING_TEMPLATE.map(t => ({ ...t, _template: true, _type: 'c' })),
     ...userTasks.map(t => ({ ...t, _type: 'c' })),
   ];
-  const isPast = day !== today();
   const done = allTasks.filter(t => isDone(t.id, day)).length;
-  const dropAttrs = isPast ? '' : `ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'parking')"`;
-
-  let htm = `<div class="sd-card sd-park" data-zone="parking" ${dropAttrs}>
-    <div class="sd-head"><span class="sd-title">Parking lot <span class="parking-tag">Optional</span></span><span class="sd-count">${done}/${allTasks.length}</span></div>`;
+  let htm = `<div class="parking-sec">
+    <div class="sec-head"><h2>Parking lot</h2><span class="count">optional · ${done} of ${allTasks.length} done</span></div>
+    <div class="list" data-zone="parking" ${dropAttrs}>`;
   for (const t of carries) htm += sdTaskRow(t, 'parking', { carry: true });
   for (const t of allTasks) htm += sdTaskRow(t, 'parking', {});
-  if (!isPast) {
-    htm += `<div class="bk-add" onclick="this.querySelector('input').focus()">
-      <span class="bk-add-plus">+</span>
-      <input class="bk-add-inp" type="text" placeholder="Park something for later..."
-        onkeydown="if(event.key==='Enter'){listQuickAdd('parking',this);event.stopPropagation();}"
-        onfocus="this.parentElement.classList.add('focused')"
-        onblur="this.parentElement.classList.remove('focused')">
-    </div>`;
-  }
-  htm += `</div>`;
+  htm += addBox + `</div></div>`;
   return htm;
+}
+
+function showParkAdd() {
+  const el = document.getElementById('parkAdd');
+  if (!el) return;
+  el.hidden = false;
+  el.querySelector('input')?.focus();
 }
 
 function shortDayCapacityHtml(day) {
@@ -4165,7 +2794,7 @@ function rmRecurring(id) {
 }
 
 function focusQuickAdd() {
-  document.getElementById('quickAddInp')?.focus();
+  document.querySelector('.list[data-zone="list"] .bk-add-inp')?.focus();
 }
 
 // ── DRAG AND DROP (reorder within a list, or move between list & parking) ──
@@ -4173,7 +2802,7 @@ function dragTask(e, fromZone, type, tid) {
   e.dataTransfer.setData('text/plain', JSON.stringify({ fromZone, type, tid }));
   e.dataTransfer.effectAllowed = 'move';
   // Add dragging class after a tick so it doesn't affect the drag image
-  setTimeout(() => e.target.closest('.task')?.classList.add('dragging'), 0);
+  setTimeout(() => e.target.closest('.row')?.classList.add('dragging'), 0);
 }
 function dragOverBlock(e) {
   e.preventDefault();
@@ -4237,47 +2866,6 @@ function moveOrReorder(data, toZone, beforeTid) {
   execMove(type, tid, fromZone, viewDay, toZone === 'parking' ? 'parking' : 'date:' + viewDay);
 }
 
-function listQuickAdd(zone, inp) {
-  const text = inp.value.trim();
-  if (!text) return;
-  const cat = detectCat(text) || (zone === 'parking' ? 'privatelabel' : 'life');
-  const dur = parseDuration(text) || 30;
-  let cleanText = text.replace(/\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|mins?|minutes?)\b/gi, '').replace(/\s{2,}/g,' ').trim() || text;
-  const taskId = 'ct' + uid();
-  if (!S.custom[viewDay]) S.custom[viewDay] = {};
-  if (!S.custom[viewDay][zone]) S.custom[viewDay][zone] = [];
-  S.custom[viewDay][zone].push({ id: taskId, text: cleanText, done: false, cat, dur });
-  _lastAddedTaskId = taskId;
-  save();
-  render();
-  // Re-focus the input in the same card after render
-  setTimeout(() => {
-    const newInp = document.querySelector(`.sd-card[data-zone="${zone}"] .bk-add-inp`);
-    if (newInp) newInp.focus();
-    setTimeout(() => { _lastAddedTaskId = null; }, 1600);
-  }, 50);
-}
-
-function quickAdd() {
-  const inp = document.getElementById('quickAddInp');
-  const text = inp.value.trim();
-  if (!text) return;
-
-  const cat = detectCat(text) || 'life';
-  const dur = parseDuration(text) || 30;
-  let cleanText = text.replace(/\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|mins?|minutes?)\b/gi, '').replace(/\s{2,}/g,' ').trim() || text;
-  const taskId = 'ct' + uid();
-
-  if (!S.custom[viewDay]) S.custom[viewDay] = {};
-  if (!S.custom[viewDay].list) S.custom[viewDay].list = [];
-  S.custom[viewDay].list.push({ id: taskId, text: cleanText, done: false, cat, dur });
-  _lastAddedTaskId = taskId;
-  save();
-  render();
-  // Re-focus the input after render
-  setTimeout(() => document.getElementById('quickAddInp')?.focus(), 50);
-}
-
 function renderNn() {
   // NNs are now in-block template tasks, no separate sidebar section needed
   const bdg = document.getElementById('nnBdg');
@@ -4287,71 +2875,83 @@ function renderNn() {
   }
 }
 
+// ── COMING UP (rail) ──
+// Next 14 days grouped per day (Today, Wed 2, …); after that a "Later · N" row
+// that expands the rest of the 60-day horizon under month labels.
+let _laterOpen = false;
+function toggleLater() {
+  _laterOpen = !_laterOpen;
+  renderEvents();
+}
+
 function renderEvents() {
-  const el = document.getElementById('evList');
+  const el = document.getElementById('railUp');
+  if (!el) return;
   const upcoming = getUpcomingEvents();
   if (!upcoming.length) {
-    el.innerHTML = '<div style="font-size:11px;color:#8a90a3;font-style:italic;">No upcoming events.</div>';
+    el.innerHTML = '<div class="up-empty">No upcoming events.</div>';
     return;
   }
-
-  const evItemHtml = (ev) => {
-    const dateStr = ev.nextDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-    const soon = ev.daysAway <= 7;
-    const timeStr = ev.time ? ' ' + ev.time : '';
-    const locTag = ev.location ? `<span style="font-size:10px;color:var(--muted);"> ${ev.location}</span>` : '';
-    const bellTag = ev.reminder != null ? `<span style="font-size:9px;color:var(--accent);margin-left:3px;" title="Reminder set">&#128276;</span>` : '';
-    const holTag = ev.holiday ? `<span style="font-size:8px;color:#6ea8b8;border:1px solid rgba(110,168,184,0.4);border-radius:3px;padding:0 3px;margin-left:5px;letter-spacing:0.5px;vertical-align:middle;">HOL</span>` : '';
-    const mufcTag = ev.mufc ? `<span style="font-size:8px;color:#DA291C;border:1px solid rgba(218,41,28,0.45);border-radius:3px;padding:0 3px;margin-left:5px;letter-spacing:0.5px;vertical-align:middle;">MUFC</span>` : '';
+  const tk = today();
+  const nowMin = getNow();
+  const evRow = (ev) => {
+    const past = ev.daysAway === 0 && ev.time && timeToMin(ev.time) < nowMin;
+    const loc = ev.location ? ` <span class="sub">· ${ev.location}</span>` : '';
+    const bell = ev.reminder != null ? `<span class="bell" title="Reminder set">&#128276;</span>` : '';
+    const bd = ev.mufc ? '<span class="bd">MUFC</span>' : ev.holiday ? '<span class="bd hol">HOL</span>' : '';
     const isPinned = isPinnedCountdown(ev.id);
-    const pinTag = `<span class="ev-pin ${isPinned?'active':''}" title="${isPinned?'Unpin countdown':'Pin as countdown'}" onclick="event.stopPropagation();togglePinCountdown('${ev.id}')">&#128204;</span>`;
-    return `<div class="ev-item" style="cursor:pointer;" onclick="editEvent('${ev.id}')">
-      <div class="ev-date">${dateStr}${timeStr}</div>
-      <div class="ev-txt">${ev.text}${mufcTag}${holTag}${locTag}${bellTag}</div>
-      <div class="ev-days ${ev.daysAway===0?'today':soon?'soon':''}">${ev.daysAway===0?'Today':ev.daysAway+'d'}</div>
-      ${pinTag}
-      <span class="ev-rm" onclick="event.stopPropagation();rmEvent('${ev.id}')">&times;</span>
+    return `<div class="ev" onclick="editEvent('${ev.id}')">
+      <span class="t mono">${ev.time || ''}</span>
+      <span class="x ${past ? 'past' : ''}">${ev.mufc ? '⚽ ' : ''}${ev.text}${loc}${bell}</span>${bd}
+      <span class="acts">
+        <span class="ev-pin ${isPinned ? 'active' : ''}" title="${isPinned ? 'Unpin countdown' : 'Pin as countdown'}" onclick="event.stopPropagation();togglePinCountdown('${ev.id}')">&#128204;</span>
+        <span class="ev-rm" title="Delete event" onclick="event.stopPropagation();rmEvent('${ev.id}')">&#10005;</span>
+      </span>
     </div>`;
   };
-
-  // Group nearest-first: "This week" / "Next week", then by real calendar month
-  // (so a 28-day-out July event reads "July", not a misleading "This month").
-  const todayD = new Date(today() + 'T12:00:00');
-  const todayDow = todayD.getDay();                  // 0=Sun..6=Sat
-  const daysToEndOfWeek = (7 - todayDow) % 7;        // days until upcoming Sunday
-  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const labelFor = (ev) => {
-    if (ev.daysAway <= daysToEndOfWeek) return 'This week';
-    if (ev.daysAway <= daysToEndOfWeek + 7) return 'Next week';
-    const d = ev.nextDate;
-    return d.getFullYear() === todayD.getFullYear() ? MONTHS[d.getMonth()] : `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const dayGroup = (dk, items) => {
+    const label = dk === tk ? 'Today' : new Date(dk + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+    return `<div class="d"><div class="dh ${dk === tk ? 'today' : ''}">${label}</div>${items.map(evRow).join('')}</div>`;
   };
 
-  // upcoming is already sorted nearest-first, so groups come out in order.
-  const groups = [];
-  const byLabel = {};
+  // upcoming is sorted nearest-first, so groups come out in date order.
+  const soon = {}, later = {};
+  const soonKeys = [], laterKeys = [];
   for (const ev of upcoming) {
-    const label = labelFor(ev);
-    if (!(label in byLabel)) { byLabel[label] = groups.length; groups.push({ label, items: [] }); }
-    groups[byLabel[label]].items.push(ev);
+    const dk = ev.nextDate.toLocalDate();
+    const bucket = ev.daysAway < 14 ? soon : later;
+    const keys = ev.daysAway < 14 ? soonKeys : laterKeys;
+    if (!bucket[dk]) { bucket[dk] = []; keys.push(dk); }
+    bucket[dk].push(ev);
   }
 
-  el.innerHTML = groups
-    .map(g => {
-      const html = `<div class="ev-group">${g.label}</div>${g.items.map(evItemHtml).join('')}`;
-      return g.label === 'This week' ? `<div class="ev-now">${html}</div>` : html;
-    })
-    .join('');
+  let htm = soonKeys.map(dk => dayGroup(dk, soon[dk])).join('');
+  const laterCount = laterKeys.reduce((n, dk) => n + later[dk].length, 0);
+  if (laterCount) {
+    htm += `<button class="later" type="button" onclick="toggleLater()">Later · ${laterCount}<span class="chev ${_laterOpen ? 'open' : ''}">&#9660;</span></button>`;
+    if (_laterOpen) {
+      const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      let lastMonth = '';
+      for (const dk of laterKeys) {
+        const d = new Date(dk + 'T12:00:00');
+        const m = MONTHS[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+        if (m !== lastMonth) { htm += `<div class="mh">${m}</div>`; lastMonth = m; }
+        htm += dayGroup(dk, later[dk]);
+      }
+    }
+  }
+  el.innerHTML = htm;
 }
 
 function renderWeek() {
   const el = document.getElementById('wkList');
+  if (!el) return;
   const mon = getMon(new Date());
   const wk = getWeek(mon);
   const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const sorted = [...S.weekly].sort((a,b)=>(a.done?1:0)-(b.done?1:0)||(a.day||'').localeCompare(b.day||''));
 
-  el.innerHTML = sorted.map(w=>{
+  el.innerHTML = sorted.length ? sorted.map(w=>{
     const di = wk.findIndex(d=>d.toLocalDate()===w.day);
     const dl = di>=0?dayNames[di]:'?';
     return `<div class="wt">
@@ -4361,24 +2961,31 @@ function renderWeek() {
       <div class="wt-day" onclick="cycleDay('${w.id}', this)" title="Click to move day">${dl}</div>
       <span class="wt-rm" onclick="rmWk('${w.id}')">&times;</span>
     </div>`;
-  }).join('');
-  document.getElementById('wkBdg').textContent = S.weekly.filter(w=>!w.done).length;
+  }).join('') : '<div class="wk-empty">Nothing on the weekly list.</div>';
+  const bdg = document.getElementById('wkBdg');
+  if (bdg) bdg.textContent = S.weekly.filter(w=>!w.done).length;
 }
 
 function renderStats() {
   const d = S.done[viewDay]||{};
   const wknd = isWeekend(viewDay);
   const nnPill = document.getElementById('sNnPill');
-  if (nnPill) nnPill.style.display = wknd ? 'none' : '';
-  document.getElementById('sNn').textContent = `${NN.filter(n=>d[n.link]).length}/${NN.length}`;
+  if (nnPill) nnPill.style.display = 'none';   // kept for the badge value only; the Daily row shows it
+  const sNn = document.getElementById('sNn');
+  if (sNn) sNn.textContent = `${NN.filter(n=>d[n.link]).length}/${NN.length}`;
   const all = listTasks(viewDay);
   const done = all.filter(t=>isDone(t.id,viewDay)).length;
-  document.getElementById('sTasks').textContent = `${done}/${all.length}`;
-  document.getElementById('sStreak').textContent = streakCount();
+  const sTasks = document.getElementById('sTasks');
+  if (sTasks) sTasks.textContent = `${done}/${all.length}`;
+  const sStreak = document.getElementById('sStreak');
+  if (sStreak) sStreak.textContent = streakCount();
+  void wknd;
 }
 
+// Coaching line — superseded by the Now block; kept (guarded) for the text logic.
 function renderPaText() {
   const el = document.getElementById('paText');
+  if (!el) return;
   if (isWeekend(viewDay)) { el.textContent = "Weekend. Recharge. Add anything personal via Quick Add if you need to."; return; }
   if (viewDay !== today()) { el.textContent = "Planning ahead. Good. Assign weekly tasks then come back to today."; return; }
   const h = new Date().getHours();
@@ -4395,6 +3002,22 @@ function renderPaText() {
   else if (h>=16) el.textContent = `Day wrapping up. ${nn}/${NN.length} non-negs, ${done}/${all.length} tasks. Finish strong.`;
   else el.textContent = `${done}/${all.length} done. ${NN.length-nn} non-negs remaining. Keep ticking.`;
 }
+
+// ── THEME (per-device; localStorage only, never in S) ──
+function setTheme(t) {
+  const light = t === 'light';
+  if (light) document.documentElement.dataset.theme = 'light';
+  else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem('dailyOS_theme', light ? 'light' : 'dark'); } catch {}
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = light ? '#f6f6f8' : '#12141b';
+  syncThemeButtons();
+}
+function syncThemeButtons() {
+  const cur = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  document.querySelectorAll('.theme button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === cur)));
+}
+syncThemeButtons();
 
 // ── INTERACTIONS ──
 function toggleSbSec(id, chevId) {
@@ -4473,7 +3096,7 @@ function closeCalendar() {
 
 function _calOutsideClick(e) {
   const cal = document.querySelector('.cal');
-  if (cal && !cal.contains(e.target) && !e.target.closest('.date-line')) {
+  if (cal && !cal.contains(e.target) && !e.target.closest('.today-label')) {
     closeCalendar();
   }
 }
@@ -4617,7 +3240,7 @@ function searchTasks(query) {
 
   el.innerHTML = results.slice(0, 10).map((r, i) => {
     const catCls = r.cat ? 'cat-bg-' + r.cat : '';
-    const catBg = r.mufc ? 'background:#DA291C;' : (r.cat ? '' : 'background:var(--accent);');
+    const catBg = r.mufc ? 'background:var(--mufc);' : (r.cat ? '' : 'background:var(--accent);');
     const meta = r.type === 'recurring' ? 'daily' : (r.day || '');
     return `<div class="sr-item" onclick="searchJump(${i})" data-idx="${i}">
       <div class="sr-dot ${catCls}" style="${catBg}"></div>
@@ -4652,7 +3275,7 @@ function searchJump(idx) {
   // Scroll the matching card into view
   if (r.jumpZone) {
     setTimeout(() => {
-      const cardEl = document.querySelector(`.sd-card[data-zone="${r.jumpZone}"]`);
+      const cardEl = document.querySelector(`.list[data-zone="${r.jumpZone}"]`);
       if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
   }
@@ -4669,7 +3292,7 @@ document.addEventListener('click', (e) => {
 // ── KEYBOARD ──
 document.addEventListener('keydown', e => {
   if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
-  if (e.key==='n') { document.getElementById('qaInp').focus(); e.preventDefault(); }
+  if (e.key==='n') { focusQuickAdd(); e.preventDefault(); }
   if (e.key==='/') { document.getElementById('searchInp').focus(); e.preventDefault(); }
   if (e.key==='t') { goThisWeek(); }
   if (e.key==='ArrowLeft') changeWeek(-1);
@@ -4915,7 +3538,7 @@ function openSyncSetup() {
   const existing = syncKey();
   const wrap = document.createElement('div');
   wrap.id = 'syncSetupOverlay';
-  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(10,11,16,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  wrap.style.cssText = 'position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
   wrap.innerHTML = `
     <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;max-width:440px;width:100%;padding:22px;">
       <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Cloud Sync</div>
@@ -4931,7 +3554,7 @@ function openSyncSetup() {
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="qa-btn" onclick="navigator.clipboard.writeText(document.getElementById('syncKeyInp').value).then(()=>showPa('Sync key copied.'))">Copy key</button>
             <button class="qa-btn" onclick="applySyncKey(document.getElementById('syncKeyInp').value.trim())">Update</button>
-            <button class="qa-btn" style="color:#e06c75;" onclick="disconnectSync()">Disconnect</button>
+            <button class="qa-btn" style="color:var(--danger);" onclick="disconnectSync()">Disconnect</button>
           </div>
         </details>
       ` : `
