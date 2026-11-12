@@ -286,6 +286,8 @@
   .t-bullets { margin-top: 3px; padding-left: 2px; }
   .t-bullet { font-size: 12px; color: var(--text2); line-height: 1.5; padding: 1px 0; display: flex; align-items: baseline; gap: 6px; }
   .t-bullet::before { content: '•'; color: var(--border2); flex-shrink: 0; font-size: 10px; }
+  .t-link { color: var(--accent); text-decoration: none; }
+  .t-link:hover { text-decoration: underline; }
   /* Row meta: carry chip · category (dot) · duration · repeat */
   .meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
   .cat { display: inline-flex; align-items: center; gap: 6px; }
@@ -409,12 +411,16 @@
   .up .dh { color: var(--muted); font-size: 12px; font-weight: 600; padding-top: 2px; }
   .up .dh.today { color: var(--accent); }
   .up .mh { font-size: 12px; font-weight: 600; color: var(--muted); padding-top: 6px; border-top: 1px solid var(--hairline); }
-  .up .ev { display: flex; gap: 10px; align-items: baseline; font-size: 13px; grid-column: 2; cursor: pointer; min-width: 0; }
+  .up .ev { display: flex; gap: 10px; align-items: baseline; font-size: 13px; grid-column: 2; cursor: pointer; min-width: 0; position: relative; }
+  .up .ev .x { display: flex; flex-direction: column; gap: 1px; }
+  .up .ev .ti { color: var(--text); line-height: 1.35; }
+  .up .ev .x .sub { font-size: 12px; line-height: 1.35; }
+  .up .ev.home .x .sub { color: var(--mufc); font-weight: 600; }
   .up .ev .t { color: var(--faint); font-size: 11.5px; min-width: 38px; flex-shrink: 0; }
   .up .ev .x { color: var(--text); flex: 1; min-width: 0; }
-  .up .ev .x.past { color: var(--faint); text-decoration: line-through; }
+  .up .ev .x.past, .up .ev .x.past .ti { color: var(--faint); text-decoration: line-through; }
   .up .ev .sub { color: var(--faint); }
-  .up .ev .acts { display: inline-flex; gap: 6px; align-items: center; opacity: 0; transition: opacity .12s; flex-shrink: 0; }
+  .up .ev .acts { position: absolute; right: 0; top: 0; display: inline-flex; gap: 6px; align-items: center; padding-left: 8px; background: var(--bg); opacity: 0; transition: opacity .12s; }
   .up .ev:hover .acts { opacity: 1; }
   .ev-pin { cursor: pointer; opacity: 0.5; transition: opacity .12s, transform .12s; font-size: 11px; line-height: 1; }
   .ev-pin:hover { opacity: 1; transform: scale(1.15); }
@@ -2551,6 +2557,31 @@ function renderMain() {
 
 // The day's events, sorted by time (all-day first), for the Now line and the
 // planning-ahead card. Past = time has passed today.
+// Display-only split of an event into a short title + one muted sub-line.
+// Stored text is never changed (the fixture refresh matches on it).
+//   "Sporting CP vs Man Utd (A) · Champions League" -> "Sporting CP" / "Away · Champions League"
+//   "Amy yoga class (Wed 6:30–7:30pm)"               -> "Amy yoga class" / "6:30–7:30pm"
+function evParts(ev) {
+  let title = ev.text || '';
+  const sub = [];
+  let home = false;
+  if (ev.mufc) {
+    const m = title.match(/^(.*?)\s+vs\s+(.*?)\s+\((H|A)\)(?:\s*·\s*(.+))?$/);
+    if (m) {
+      home = m[3] === 'H';
+      title = home ? m[2] : m[1];
+      sub.push(home ? 'Home' : 'Away');
+      if (m[4]) sub.push(m[4]);
+    }
+  } else {
+    const p = title.match(/^(.*\S)\s*\(([^()]+)\)\s*$/);
+    if (p) { title = p[1]; sub.push(p[2].replace(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\.?\s+/i, '')); }
+    if (ev.holiday) sub.push('Holiday');
+  }
+  if (ev.location) sub.push(ev.location);
+  return { title, sub: sub.join(' · '), home };
+}
+
 function dayEventSpans(day) {
   const isToday = day === today();
   const evs = getUpcomingEvents()
@@ -2558,9 +2589,9 @@ function dayEventSpans(day) {
     .sort((a, b) => (a.time ? timeToMin(a.time) : -1) - (b.time ? timeToMin(b.time) : -1));
   return evs.map(ev => {
     const past = isToday && ev.time && timeToMin(ev.time) < getNow();
-    const loc = ev.location ? ` <span class="soft">· ${ev.location}</span>` : '';
-    const bd = ev.mufc ? '<span class="bd">MUFC</span>' : ev.holiday ? '<span class="bd hol">HOL</span>' : '';
-    return `<span class="${past ? 'past' : ''}" onclick="editEvent('${ev.id}')" title="Edit event"><span class="t mono">${ev.time || 'all day'}</span>${ev.mufc ? '⚽ ' : ''}${ev.text}${loc}${bd}</span>`;
+    const ep = evParts(ev);
+    const sub = ep.sub ? ` <span class="soft">· ${ep.sub}</span>` : '';
+    return `<span class="${past ? 'past' : ''}" onclick="editEvent('${ev.id}')" title="Edit event"><span class="t mono">${ev.time || 'all day'}</span>${ev.mufc ? '⚽ ' : ''}${ep.title}${sub}</span>`;
   }).join('');
 }
 
@@ -2683,6 +2714,19 @@ function nnRow(n, d) {
     </div>`;
 }
 
+// A note line that is just a URL shows as "site.com/first-bit… ↗" and opens in a
+// new tab without triggering the row's edit click. Anything else shows as typed.
+function noteLine(l) {
+  if (!/^https?:\/\/\S+$/i.test(l)) return l;
+  let label = l;
+  try {
+    const u = new URL(l);
+    const path = u.pathname.replace(/\/+$/, '');
+    label = u.hostname.replace(/^www\./, '') + (path ? (path.length > 28 ? path.slice(0, 28) + '…' : path) : '');
+  } catch (e) {}
+  return `<a class="t-link" href="${l}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${label} &#8599;</a>`;
+}
+
 // One task row. `zone` is 'list' or 'parking'; opts.carry marks a carried-over
 // task surfaced from a previous day (t._home).
 function sdTaskRow(t, zone, opts = {}) {
@@ -2711,7 +2755,7 @@ function sdTaskRow(t, zone, opts = {}) {
       <div class="tck ${d ? 'done' : ''}" onclick="toggle('${t.id}','${home}')"></div>
       <div class="t-content" ${editAttr}>
         <div class="t-text ${d ? 'done' : ''}">${t.text}</div>
-        ${t.notes ? `<div class="t-bullets">${t.notes.split('\n').filter(l => l.trim()).map(l => `<div class="t-bullet">${l.trim()}</div>`).join('')}</div>` : ''}
+        ${t.notes ? `<div class="t-bullets">${t.notes.split('\n').filter(l => l.trim()).map(l => `<div class="t-bullet">${noteLine(l.trim())}</div>`).join('')}</div>` : ''}
       </div>
       ${meta ? `<div class="meta">${meta}</div>` : ''}
       ${moveBtn}
@@ -2945,13 +2989,12 @@ function renderEvents() {
   const nowMin = getNow();
   const evRow = (ev) => {
     const past = ev.daysAway === 0 && ev.time && timeToMin(ev.time) < nowMin;
-    const loc = ev.location ? ` <span class="sub">· ${ev.location}</span>` : '';
-    const bell = ev.reminder != null ? `<span class="bell" title="Reminder set">&#128276;</span>` : '';
-    const bd = ev.mufc ? '<span class="bd">MUFC</span>' : ev.holiday ? '<span class="bd hol">HOL</span>' : '';
+    const bell = ev.reminder != null ? ` <span class="bell" title="Reminder set">&#128276;</span>` : '';
+    const ep = evParts(ev);
     const isPinned = isPinnedCountdown(ev.id);
-    return `<div class="ev" onclick="editEvent('${ev.id}')">
+    return `<div class="ev ${ev.mufc ? 'mufc' : ''} ${ep.home ? 'home' : ''}" onclick="editEvent('${ev.id}')">
       <span class="t mono">${ev.time || ''}</span>
-      <span class="x ${past ? 'past' : ''}">${ev.mufc ? '⚽ ' : ''}${ev.text}${loc}${bell}</span>${bd}
+      <span class="x ${past ? 'past' : ''}"><span class="ti">${ev.mufc ? '⚽ ' : ''}${ep.title}${bell}</span>${ep.sub ? `<span class="sub">${ep.sub}</span>` : ''}</span>
       <span class="acts">
         <span class="ev-pin ${isPinned ? 'active' : ''}" title="${isPinned ? 'Unpin countdown' : 'Pin as countdown'}" onclick="event.stopPropagation();togglePinCountdown('${ev.id}')">&#128204;</span>
         <span class="ev-rm" title="Delete event" onclick="event.stopPropagation();rmEvent('${ev.id}')">&#10005;</span>
