@@ -363,7 +363,9 @@
   .bk-add-inp::placeholder { color: var(--faint); }
 
   /* Parking lot: one quiet line when empty, a second .list when not */
-  .parking { margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+  .earlier-head { display:flex; align-items:baseline; gap:8px; padding:12px 16px 6px; border-top:1px solid var(--border); font-size:12px; font-weight:600; color:var(--muted); }
+  .earlier-head .n { color:var(--text); }
+  .earlier-head .hint { margin-left:auto; font-weight:400; color:var(--faint); } margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
   .parking.drag-over { outline: 1px dashed var(--accent); outline-offset: 4px; border-radius: 6px; }
   .parking b { font-weight: 600; color: var(--text); }
   .parking .n { color: var(--faint); }
@@ -1105,7 +1107,7 @@ function updateBackupLabel() {
   if (!el) return;
   if (S._lastExport) {
     const d = new Date(S._lastExport);
-    el.textContent = 'Last export: ' + d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+    el.textContent = 'Last export: ' + fmtDate(d, { day:'numeric', month:'short', year:'numeric' });
   } else {
     el.textContent = 'Auto-saved to browser. Export for external backup.';
   }
@@ -1113,6 +1115,16 @@ function updateBackupLabel() {
 
 function toDateStr(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 Date.prototype.toLocalDate = function() { return toDateStr(this); };
+// toLocaleDateString builds a new Intl formatter on every call (~0.7ms each on a
+// phone); renders format a dozen dates, search one per match. Reuse one per format.
+// (Cache hangs off the hoisted function, so it's safe to call before this line runs.)
+function fmtDate(d, opts) {
+  const cache = fmtDate._c || (fmtDate._c = new Map());
+  const k = JSON.stringify(opts);
+  let f = cache.get(k);
+  if (!f) { f = new Intl.DateTimeFormat('en-GB', opts); cache.set(k, f); }
+  return isNaN(d) ? 'Invalid Date' : f.format(d);  // toLocaleDateString's answer; format() would throw
+}
 function today() { return toDateStr(new Date()); }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).substr(2,5); }
 
@@ -1482,16 +1494,20 @@ function isDayOff(dayStr) { return S.daysOff.includes(dayStr); }
 // ticking it marks it done for its home day. Recurring tasks never carry (they
 // recur anyway). A task follows for at most 2 days. Parking Lot tasks carry
 // separately with no day cap — see getParkingCarries().
+// An unticked task follows you until it's ticked or dismissed (×) — no day cap.
+// Newest first, so the most recent loose ends sit at the top of the group.
 function getCarryTasks() {
   if (viewDay !== today()) return [];
+  const tk = today();
+  // Guard like getParkingCarries: an id already on today's list never doubles up.
+  const seen = new Set(((((S.custom[tk]) || {}).list) || []).map(t => t.id));
   const out = [];
-  for (let back = 2; back >= 1; back--) {
-    const d = new Date();
-    d.setDate(d.getDate() - back);
-    const dk = toDateStr(d);
+  for (const dk of Object.keys(S.custom).sort().reverse()) {
+    if (dk >= tk) continue;
     const dismissed = (S.carryDismissed || {})[dk] || {};
     for (const t of ((S.custom[dk] || {}).list) || []) {
-      if (dismissed[t.id]) continue;
+      if (dismissed[t.id] || seen.has(t.id)) continue;
+      seen.add(t.id);
       // Ticked TODAY stays visible (struck through) until the day rolls over;
       // ticked on an earlier day (or on its own home day) stays hidden.
       if (isDone(t.id, dk) && (S.carryTicked || {})[t.id] !== today()) continue;
@@ -1538,8 +1554,8 @@ function dismissCarry(homeDay, tid) {
 function carryChipLabel(home) {
   const d = new Date(home + 'T12:00:00');
   const age = Math.round((new Date(today() + 'T12:00:00') - d) / 86400000);
-  if (age <= 6) return d.toLocaleDateString('en-GB', { weekday: 'short' });
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (age <= 6) return fmtDate(d, { weekday: 'short' });
+  return fmtDate(d, { day: 'numeric', month: 'short' });
 }
 
 function toggleDayOff(dayStr) {
@@ -1727,7 +1743,7 @@ function execMove(type, tid, zone, homeDay, target) {
 function labelForDay(dk) {
   if (dk === today()) return 'today';
   if (dk === literalTomorrow()) return 'tomorrow';
-  return new Date(dk+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
+  return fmtDate(new Date(dk+'T12:00:00'), {weekday:'long',day:'numeric',month:'short'});
 }
 
 // ── IMPROVED parseTime — requires "at" prefix OR am/pm suffix to avoid matching bare numbers ──
@@ -1878,7 +1894,7 @@ function addTaskFromText(text, opts = {}) {
     const wkId = uid();
     S.weekly.push({ id: wkId, text: cleanText, cat, dur, day: bestWkDay, done: false });
     save();
-    const dayLbl = new Date(bestWkDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'});
+    const dayLbl = fmtDate(new Date(bestWkDay+'T12:00:00'), {weekday:'long'});
     showPaWithMove(wkId, `Added "${cleanText}" to weekly list on ${dayLbl}. ${dur}min.`);
     render();
     return { kind: 'weekly', id: wkId, day: bestWkDay };
@@ -1905,7 +1921,7 @@ function addTaskFromText(text, opts = {}) {
   if (day !== viewDay) {
     const dayLbl = day===today() ? 'today' :
       day===literalTomorrow() ? 'tomorrow' :
-      new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
+      fmtDate(new Date(day+'T12:00:00'), {weekday:'long',day:'numeric',month:'short'});
     showPa(`Added to ${dayLbl} (${dur}min). Viewing now.`);
     // Navigate to the day where the task was added (update week offset too)
     viewDay = day;
@@ -1966,7 +1982,7 @@ function moveWeeklyTask(id, newDay) {
   if (!t) return;
   t.day = newDay;
   save();
-  const dayLbl = new Date(newDay+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'});
+  const dayLbl = fmtDate(new Date(newDay+'T12:00:00'), {weekday:'long'});
   showPa(`Moved to ${dayLbl}.`);
   render();
 }
@@ -2314,7 +2330,7 @@ function unpinCountdown(id) {
 function renderCountdownRow(target) {
   const { ev, evDate, diffDays } = target;
   const num = diffDays === 0 ? 'Today' : diffDays;
-  const dateStr = evDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const dateStr = fmtDate(evDate, { weekday: 'short', day: 'numeric', month: 'short' });
   const bits = [dateStr];
   if (ev.location) bits.push(ev.location);
   if (diffDays >= 7) { const w = Math.round(diffDays / 7); bits.push(`${w} week${w === 1 ? '' : 's'}`); }
@@ -2342,11 +2358,11 @@ function renderCountdownHero() {
   }
   const el = document.getElementById('railCount');
   if (!el) return;
-  if (!targets.length) { el.hidden = true; el.innerHTML = ''; return; }
+  if (!targets.length) { el.hidden = true; setHTML(el, ''); return; }
   // Nearest event first.
   targets.sort((a, b) => a.diffDays - b.diffDays);
   el.hidden = false;
-  el.innerHTML = `<h3>Counting down</h3>` + targets.map(renderCountdownRow).join('');
+  setHTML(el, `<h3>Counting down</h3>` + targets.map(renderCountdownRow).join(''));
 }
 
 // ── STREAK ──
@@ -2438,6 +2454,15 @@ function rmWk(id) {
 }
 
 // ── RENDER ──
+// setHTML skips the DOM rebuild (and the layout it costs) when a section's
+// markup hasn't changed — most taps only change the day column, not the rail.
+// Only for sections nothing edits in place; #main is always rebuilt.
+function setHTML(el, htm) {
+  if (el._html === htm) return;
+  el._html = htm;
+  el.innerHTML = htm;
+}
+
 function render() {
   renderTop();
   renderMain();
@@ -2446,6 +2471,17 @@ function render() {
   renderWeek();
   renderStats();
   renderPaText();
+  centerWeekStrip();
+}
+
+// Mobile: the week strip scrolls horizontally — centre the active day inside the
+// strip only (direct scrollLeft, so document scroll is never touched). Runs after
+// every section is written so it reads layout once, not mid-render.
+function centerWeekStrip() {
+  const weekEl = document.getElementById('week');
+  if (!weekEl || weekEl.scrollWidth <= weekEl.clientWidth) return;
+  const dbtn = weekEl.querySelector('.day.active');
+  if (dbtn) weekEl.scrollLeft = dbtn.offsetLeft - (weekEl.clientWidth - dbtn.offsetWidth) / 2;
 }
 
 // Top bar: date label (click → calendar), week strip, and the view-dependent
@@ -2462,16 +2498,16 @@ function renderTop() {
 
   const dateEl = document.getElementById('topDate');
   if (dateEl) {
-    const wd = vd.toLocaleDateString('en-GB', { weekday: 'long' });
-    const dm = vd.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+    const wd = fmtDate(vd, { weekday: 'long' });
+    const dm = fmtDate(vd, { day: 'numeric', month: 'long' });
     const yr = vd.getFullYear() !== new Date().getFullYear() ? ' ' + vd.getFullYear() : '';
-    dateEl.innerHTML = `${wd} <span>${dm}${yr}</span>`;
+    setHTML(dateEl, `${wd} <span>${dm}${yr}</span>`);
   }
 
   const weekEl = document.getElementById('week');
   if (weekEl) {
     const upcomingDays = new Set(getUpcomingEvents().map(e => e.nextDate.toLocalDate()));
-    weekEl.innerHTML =
+    setHTML(weekEl,
       `<button class="day" type="button" onclick="changeWeek(-1)" title="Previous week">&#8592;</button>` +
       wk.map((d, i) => {
         const dk = d.toLocalDate();
@@ -2482,11 +2518,7 @@ function renderTop() {
           || upcomingDays.has(dk);
         return `<button class="day ${isAct ? 'active' : ''} ${hasTasks && !isAct ? 'has-tasks' : ''}" type="button" onclick="switchDay('${dk}')">${isTd ? 'Today' : dayNames[i]}</button>`;
       }).join('') +
-      `<button class="day" type="button" onclick="changeWeek(1)" title="Next week">&#8594;</button>`;
-    // Mobile: the strip scrolls horizontally — centre the active day inside the
-    // strip only (direct scrollLeft, so document scroll is never touched).
-    const dbtn = weekEl.querySelector('.day.active');
-    if (dbtn) weekEl.scrollLeft = dbtn.offsetLeft - (weekEl.clientWidth - dbtn.offsetWidth) / 2;
+      `<button class="day" type="button" onclick="changeWeek(1)" title="Next week">&#8594;</button>`);
   }
 
   const btns = document.getElementById('topBtns');
@@ -2498,7 +2530,7 @@ function renderTop() {
       const off = isDayOff(viewDay);
       h += `<button class="hdr-link${off ? ' on' : ''}" type="button" onclick="toggleDayOff('${viewDay}')">${off ? 'Back to work' : 'Day off'}</button>`;
     }
-    btns.innerHTML = h;
+    setHTML(btns, h);
   }
 }
 
@@ -2542,11 +2574,11 @@ function renderNowBlock(day) {
   let eyebrow, h1, then;
   if (isToday) {
     const carries = getCarryTasks();
-    const firstOpen = carries.find(t => !isDone(t.id, t._home)) || tasks.find(t => !isDone(t.id, day));
+    const firstOpen = tasks.find(t => !isDone(t.id, day)) || carries.find(t => !isDone(t.id, t._home));
     eyebrow = 'Now';
     if (firstOpen) {
       const from = firstOpen._home && firstOpen._home !== day
-        ? ` <span class="soft">— carried from ${new Date(firstOpen._home + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}</span>` : '';
+        ? ` <span class="soft">— from ${carryChipLabel(firstOpen._home)}</span>` : '';
       h1 = firstOpen.text + from;
     } else {
       h1 = `Clear day. <span class="soft">${doneCount} done, nothing waiting.</span>`;
@@ -2556,7 +2588,7 @@ function renderNowBlock(day) {
     const vd = new Date(day + 'T12:00:00');
     const isPastDay = day < today();
     eyebrow = isPastDay ? 'Looking back' : 'Planning ahead';
-    h1 = vd.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    h1 = fmtDate(vd, { weekday: 'long', day: 'numeric', month: 'long' });
     let sub;
     if (isPastDay) sub = tasks.length ? `${doneCount}/${tasks.length} tasks done that day.` : 'Nothing was scheduled.';
     else if (tasks.length) sub = `${tasks.length} task${tasks.length > 1 ? 's' : ''} planned${doneCount ? ` · ${doneCount} already done` : ''}.`;
@@ -2578,11 +2610,11 @@ function renderDayCard(day) {
   const carries = isToday ? getCarryTasks() : [];
   const doneCount = tasks.filter(t => isDone(t.id, day)).length;
   const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
-  const title = isToday ? 'Today' : new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long' });
+  const title = isToday ? 'Today' : fmtDate(new Date(day + 'T12:00:00'), { weekday: 'long' });
   const showNn = !isWeekend(day);
   const nnDone = S.done[day] || {};
 
-  // Row order: done (compact) → Daily → carries → pending. Display-only sort;
+  // Row order: done (compact) → Daily → today's pending → "Still open from earlier". Display-only sort;
   // S.order must stay untouched (moveOrReorder rebuilds it from listTasks()).
   const doneCarries = carries.filter(t => isDone(t.id, t._home));
   const openCarries = carries.filter(t => !isDone(t.id, t._home));
@@ -2599,8 +2631,11 @@ function renderDayCard(day) {
   for (const t of doneCarries) htm += sdTaskRow(t, 'list', { carry: true });
   for (const t of doneTasks) htm += sdTaskRow(t, 'list', {});
   for (const n of nnOpen) htm += nnRow(n, false);
-  for (const t of openCarries) htm += sdTaskRow(t, 'list', { carry: true });
   for (const t of openTasks) htm += sdTaskRow(t, 'list', {});
+  if (openCarries.length) {
+    htm += `<div class="earlier-head">Still open from earlier <span class="n">${openCarries.length}</span><span class="hint">tick when done · × to drop</span></div>`;
+    for (const t of openCarries) htm += sdTaskRow(t, 'list', { carry: true });
+  }
   if (!tasks.length && !carries.length) {
     htm += `<div class="sd-empty">${isDayOff(day) ? 'Day off. Enjoy.' : (showNn ? 'Nothing else on the list yet.' : 'Nothing on the list yet.')}</div>`;
   }
@@ -2889,7 +2924,7 @@ function renderEvents() {
   if (!el) return;
   const upcoming = getUpcomingEvents();
   if (!upcoming.length) {
-    el.innerHTML = '<div class="up-empty">No upcoming events.</div>';
+    setHTML(el, '<div class="up-empty">No upcoming events.</div>');
     return;
   }
   const tk = today();
@@ -2910,7 +2945,7 @@ function renderEvents() {
     </div>`;
   };
   const dayGroup = (dk, items) => {
-    const label = dk === tk ? 'Today' : new Date(dk + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+    const label = dk === tk ? 'Today' : fmtDate(new Date(dk + 'T12:00:00'), { weekday: 'short', day: 'numeric' });
     return `<div class="d"><div class="dh ${dk === tk ? 'today' : ''}">${label}</div>${items.map(evRow).join('')}</div>`;
   };
 
@@ -2940,7 +2975,7 @@ function renderEvents() {
       }
     }
   }
-  el.innerHTML = htm;
+  setHTML(el, htm);
 }
 
 function renderWeek() {
@@ -2951,7 +2986,7 @@ function renderWeek() {
   const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const sorted = [...S.weekly].sort((a,b)=>(a.done?1:0)-(b.done?1:0)||(a.day||'').localeCompare(b.day||''));
 
-  el.innerHTML = sorted.length ? sorted.map(w=>{
+  setHTML(el, sorted.length ? sorted.map(w=>{
     const di = wk.findIndex(d=>d.toLocalDate()===w.day);
     const dl = di>=0?dayNames[di]:'?';
     return `<div class="wt">
@@ -2961,7 +2996,7 @@ function renderWeek() {
       <div class="wt-day" onclick="cycleDay('${w.id}', this)" title="Click to move day">${dl}</div>
       <span class="wt-rm" onclick="rmWk('${w.id}')">&times;</span>
     </div>`;
-  }).join('') : '<div class="wk-empty">Nothing on the weekly list.</div>';
+  }).join('') : '<div class="wk-empty">Nothing on the weekly list.</div>');
   const bdg = document.getElementById('wkBdg');
   if (bdg) bdg.textContent = S.weekly.filter(w=>!w.done).length;
 }
@@ -3107,7 +3142,7 @@ function renderCalendar() {
 
   const year = _calMonth.getFullYear();
   const month = _calMonth.getMonth();
-  const monthName = _calMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const monthName = fmtDate(_calMonth, { month: 'long', year: 'numeric' });
 
   // First day of month and how many days
   const firstDay = new Date(year, month, 1);
@@ -3191,7 +3226,7 @@ function searchTasks(query) {
   // Search weekly tasks
   for (const w of S.weekly) {
     if (w.text.toLowerCase().includes(q)) {
-      const dayLbl = w.day ? new Date(w.day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) : 'unassigned';
+      const dayLbl = w.day ? fmtDate(new Date(w.day+'T12:00:00'), {weekday:'short',day:'numeric',month:'short'}) : 'unassigned';
       results.push({ text: w.text, type: 'weekly', cat: w.cat, day: dayLbl, jumpDay: w.day || today() });
     }
   }
@@ -3202,7 +3237,7 @@ function searchTasks(query) {
       if (!Array.isArray(tasks)) continue;
       for (const t of tasks) {
         if (t.text.toLowerCase().includes(q)) {
-          const dayLbl = new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+          const dayLbl = fmtDate(new Date(day+'T12:00:00'), {weekday:'short',day:'numeric',month:'short'});
           results.push({ text: t.text, type: 'added', block: zone === 'parking' ? 'Parking Lot' : 'Day list', cat: t.cat, day: dayLbl, jumpDay: day, jumpZone: zone });
         }
       }
@@ -3221,7 +3256,7 @@ function searchTasks(query) {
   for (const ev of S.events) {
     if (ev.text.toLowerCase().includes(q)) {
       const loc = ev.location ? ` (${ev.location})` : '';
-      results.push({ text: ev.text + loc, type: 'event', cat: null, mufc: !!ev.mufc, day: new Date(ev.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}), jumpDay: ev.date, eventId: ev.id });
+      results.push({ text: ev.text + loc, type: 'event', cat: null, mufc: !!ev.mufc, day: fmtDate(new Date(ev.date+'T12:00:00'), {day:'numeric',month:'short'}), jumpDay: ev.date, eventId: ev.id });
     }
   }
 
@@ -3679,7 +3714,7 @@ function disconnectSync() {
 // polls the deployed page's ETag (fallback Last-Modified), which GitHub Pages
 // changes on every deploy — so there's no build-version constant to bump. A
 // cache-busted HEAD avoids the CDN's 10-min edge TTL and downloads no body. The
-// network-first SW means tapping Refresh always loads the fresh code.
+// SW is cache-first, so Refresh pulls the new page into its cache before reloading.
 let _appVersionTag = null;     // baseline: the build this session is running (set once, then stable)
 let _dismissedTag = null;      // a build the user dismissed — don't re-nag for this exact one
 let _baselinePending = false;  // serializes concurrent baseline establishment
@@ -3690,6 +3725,12 @@ let _lastUpdateCheck = 0;      // throttle, since visibilitychange can fire on e
 // Single reload gate: the toast's Refresh and the SW controllerchange handler both
 // route through this, so a deploy that changes BOTH the page and sw.js can't double-reload.
 function reloadOnce() { if (_reloading) return; _reloading = true; location.reload(); }
+async function reloadFresh() {
+  if (_reloading) return;
+  _reloading = true;
+  try { await fetch(location.pathname, { cache: 'no-store', headers: { 'x-dailyos-fresh': '1' } }); } catch {}
+  location.reload();
+}
 
 async function fetchVersionTag() {
   try {
@@ -3729,7 +3770,7 @@ function showUpdateToast(newTag) {
     + '<button class="ut-dismiss" aria-label="Dismiss">×</button>';
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
-  t.querySelector('.ut-refresh').onclick = () => reloadOnce();
+  t.querySelector('.ut-refresh').onclick = () => reloadFresh();
   t.querySelector('.ut-dismiss').onclick = () => {
     t.classList.remove('show');
     setTimeout(() => t.remove(), 200);
@@ -3768,6 +3809,11 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // so the fresh code/HTML lands without the user needing a manual hard-refresh.
   // Routed through reloadOnce() so it can't collide with a Refresh-button reload.
   navigator.serviceWorker.addEventListener('controllerchange', () => reloadOnce());
+  // The SW paints the cached page first and refreshes it in the background; it
+  // posts here when that refresh is a new deploy (the next launch runs it anyway).
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'dailyos-update' && e.data.tag !== _dismissedTag) showUpdateToast(e.data.tag);
+  });
 }
 
 // Update detection (needs a server to poll, so http(s) only — not file://)
