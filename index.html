@@ -337,6 +337,7 @@
     .t-move, .t-rm { font-size: 16px; min-width: 28px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; }
   }
   .row.drop-above { box-shadow: 0 -2px 0 var(--accent); }
+  .row.drop-below { box-shadow: 0 2px 0 var(--accent); }
   .sd-menu {
     position: fixed; background: var(--s2); border: 1px solid var(--border2);
     border-radius: 8px; padding: 4px; box-shadow: var(--shadow-pop);
@@ -489,6 +490,7 @@
     opacity: 0; pointer-events: none;
     transition: opacity .2s ease, transform .2s ease;
   }
+  .toast-act { margin-left: 14px; padding: 4px 12px; border-radius: 6px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600; cursor: pointer; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
 
@@ -1550,10 +1552,14 @@ function getParkingCarries() {
   return out;
 }
 
-function dismissCarry(homeDay, tid) {
+function _dismissCarryNow(homeDay, tid) {
   if (!S.carryDismissed[homeDay]) S.carryDismissed[homeDay] = {};
   S.carryDismissed[homeDay][tid] = true;
   save(); render();
+}
+function dismissCarry(homeDay, tid) {
+  const f = findCustom(tid, homeDay); const label = `Dropped "${f ? f.task.text : 'task'}"`;
+  withUndo(label, () => _dismissCarryNow(homeDay, tid));
 }
 
 // Chip text for a carried row ("from Sun"): the home weekday when it's within the
@@ -1609,6 +1615,7 @@ function listTasks(day) {
 
 function isDone(tid, day) { return !!(S.done[day]||{})[tid]; }
 
+var _hold = {}, _holdTimers = {};   // var: render can run before this line
 function toggle(tid, day) {
   // `day` defaults to the day being viewed; carry-over rows pass their home
   // day so ticking a carried task marks it done where it actually lives.
@@ -1623,6 +1630,11 @@ function toggle(tid, day) {
     if (nowDone) S.carryTicked[tid] = viewDay;
     else delete S.carryTicked[tid];
   }
+  // Hold the row where it is for a beat so it doesn't vanish from under the
+  // cursor; the next render (in 700ms) moves it into its new group.
+  _hold[tid] = true;
+  clearTimeout(_holdTimers[tid]);
+  _holdTimers[tid] = setTimeout(() => { delete _hold[tid]; delete _holdTimers[tid]; render(); }, 700);
   checkStreak();
   save(); render();
   if (nowDone) {
@@ -1651,10 +1663,14 @@ function toggle(tid, day) {
   }
 }
 
-function rmCustom(bid, tid) {
+function _rmCustomNow(bid, tid) {
   const c = (S.custom[viewDay]||{})[bid];
   if (c) { const i=c.findIndex(t=>t.id===tid); if(i>-1)c.splice(i,1); }
   save(); render();
+}
+function rmCustom(bid, tid) {
+  const f = findCustom(tid, viewDay, bid); const label = `Deleted "${f ? f.task.text : 'task'}"`;
+  withUndo(label, () => _rmCustomNow(bid, tid));
 }
 
 // ── MOVE-TO POPOVER ──
@@ -1923,18 +1939,14 @@ function addTaskFromText(text, opts = {}) {
   // Track for highlight animation
   _lastAddedTaskId = taskId;
 
+  render();
+  // Stay on the day you're planning; offer a jump instead of yanking the view.
   if (day !== viewDay) {
     const dayLbl = day===today() ? 'today' :
       day===literalTomorrow() ? 'tomorrow' :
       fmtDate(new Date(day+'T12:00:00'), {weekday:'long',day:'numeric',month:'short'});
-    showPa(`Added to ${dayLbl} (${dur}min). Viewing now.`);
-    // Navigate to the day where the task was added (update week offset too)
-    viewDay = day;
-    const _tMon = getMon(new Date(day + 'T12:00:00'));
-    const _cMon = getMon(new Date());
-    viewWeekOffset = Math.round((_tMon - _cMon) / 86400000 / 7);
+    toast(`Added "${cleanText}" to ${dayLbl}.`, { label: 'View', fn: () => goToDay(day) });
   }
-  render();
   return { kind: 'custom', id: taskId, day, zone };
 }
 
@@ -1945,24 +1957,36 @@ function listQuickAdd(zone, inp) {
   if (!text) return;
   const res = addTaskFromText(text, { zone });
   if (!res) return;
-  setTimeout(() => {
-    if (res.kind === 'custom' && res.day === viewDay) {
-      const newInp = document.querySelector(`.list[data-zone="${zone}"] .bk-add-inp`);
-      if (newInp) newInp.focus();
-    } else {
-      const cardEl = document.querySelector('.list[data-zone="list"]');
-      if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    setTimeout(() => { _lastAddedTaskId = null; }, 1600);
-  }, 50);
+  // Refocus synchronously, still inside the Enter keypress, so a phone keeps
+  // its keyboard open for the next task (a delayed focus() lets it close).
+  const newInp = document.querySelector(`.list[data-zone="${zone}"] .bk-add-inp`);
+  if (newInp) newInp.focus();
+  setTimeout(() => { _lastAddedTaskId = null; }, 1600);
 }
 
-function showPa(msg) {
+// One toast, one timer (a stale timer used to hide a newer toast early).
+// action = { label, fn } adds a button, e.g. Undo or View.
+var _toastTimer = null;   // var: showPa can run during startup
+function toast(msg, action) {
   const el = document.getElementById('paMsg');
-  el.textContent = msg;
+  if (!el) return;
+  el.textContent = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  el.appendChild(span);
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-act';
+    b.textContent = action.label;
+    b.onclick = () => { el.classList.remove('show'); action.fn(); };
+    el.appendChild(b);
+  }
   el.classList.add('show');
-  setTimeout(()=>el.classList.remove('show'), 4000);
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), action ? 6000 : 4000);
 }
+function showPa(msg) { toast(msg); }
 
 function showPaWithMove(taskId, msg) {
   const el = document.getElementById('paMsg');
@@ -1979,7 +2003,8 @@ function showPaWithMove(taskId, msg) {
 
   el.innerHTML = `${msg}<div style="display:flex;gap:3px;margin-top:6px;align-items:center;"><span style="font-size:9px;color:var(--muted);margin-right:4px;">Move:</span>${btns}</div>`;
   el.classList.add('show');
-  setTimeout(()=>el.classList.remove('show'), 8000);
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 8000);
 }
 
 function moveWeeklyTask(id, newDay) {
@@ -1995,8 +2020,8 @@ function moveWeeklyTask(id, newDay) {
 function editTask(type, bid, tid) {
   let task;
   if (type === 'c') {
-    const c = (S.custom[viewDay]||{})[bid];
-    task = c ? c.find(t => t.id === tid) : null;
+    const f = findCustom(tid, viewDay, bid);
+    task = f ? f.task : null;
   } else if (type === 'w') {
     task = S.weekly.find(w => w.id === tid);
   } else if (type === 'rec') {
@@ -2040,13 +2065,7 @@ function editTask(type, bid, tid) {
       </div>
     </div>`;
   document.body.appendChild(modal);
-  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-  document.getElementById('te-text').focus();
-  document.getElementById('te-text').select();
-  modal.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveTaskEdit(type, bid, tid);
-    if (e.key === 'Escape') modal.remove();
-  });
+  wireModal(modal, 'te-text');   // Enter saves (Ctrl+Enter in notes), Esc / click outside closes
 }
 
 function saveTaskEdit(type, bid, tid) {
@@ -2066,8 +2085,8 @@ function saveTaskEdit(type, bid, tid) {
       task.dur = newDur;
     }
   } else if (type === 'c') {
-    const c = (S.custom[viewDay]||{})[bid];
-    const task = c ? c.find(t => t.id === tid) : null;
+    const f = findCustom(tid, viewDay, bid);
+    const task = f ? f.task : null;
     if (task) {
       task.text = newText;
       task.notes = newNotes || undefined;
@@ -2118,7 +2137,7 @@ function addEvent() {
   render();
 }
 
-function rmEvent(id) {
+function _rmEventNow(id) {
   // Record the deleted text so seeders (ensureEvent & friends) never re-add
   // it. Recording EVERY deletion (not just seeds) is safe: ensureEvent is
   // only ever called by seeders, and the sidebar event form pushes directly,
@@ -2127,6 +2146,10 @@ function rmEvent(id) {
   if (ev) S.deletedSeeds[ev.text] = true;
   S.events = S.events.filter(e=>e.id!==id);
   save(); render();
+}
+function rmEvent(id) {
+  const ev = S.events.find(e => e.id === id); const label = `Deleted event "${ev ? ev.text : ''}"`;
+  withUndo(label, () => _rmEventNow(id));
 }
 
 function editEvent(id) {
@@ -2175,12 +2198,12 @@ function editEvent(id) {
       </div>
     </div>`;
   document.body.appendChild(modal);
+  wireModal(modal, 'ee-title');
 
   // Close on backdrop click
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
   document.getElementById('ee-title').focus();
   // Enter to save
-  modal.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveEventEdit(id); if (e.key === 'Escape') modal.remove(); });
 }
 
 function saveEventEdit(id) {
@@ -2454,9 +2477,13 @@ function cycleDay(id, el) {
   }, 10);
 }
 
-function rmWk(id) {
+function _rmWkNow(id) {
   S.weekly = S.weekly.filter(w=>w.id!==id);
   save(); render();
+}
+function rmWk(id) {
+  const w = S.weekly.find(x => x.id === id); const label = `Deleted "${w ? w.text : 'task'}"`;
+  withUndo(label, () => _rmWkNow(id));
 }
 
 // ── RENDER ──
@@ -2636,6 +2663,14 @@ function renderNowBlock(day) {
     </section>`;
 }
 
+function goToDay(day) {
+  viewDay = day;
+  const tMon = getMon(new Date(day + 'T12:00:00'));
+  const cMon = getMon(new Date());
+  viewWeekOffset = Math.round((tMon - cMon) / 86400000 / 7);
+  render();
+}
+
 // "14 loose ends from earlier · clear 3 today" — daily target of 3, counted
 // from carries ticked today (S.carryTicked), so progress survives a reload.
 const LOOSE_TARGET = 3;
@@ -2661,10 +2696,12 @@ function renderDayCard(day) {
 
   // Row order: done (compact) → Daily → today's pending → "Still open from earlier". Display-only sort;
   // S.order must stay untouched (moveOrReorder rebuilds it from listTasks()).
-  const doneCarries = carries.filter(t => isDone(t.id, t._home));
-  const openCarries = carries.filter(t => !isDone(t.id, t._home));
-  const doneTasks = tasks.filter(t => isDone(t.id, day));
-  const openTasks = tasks.filter(t => !isDone(t.id, day));
+  // A just-toggled row stays in its previous group until its hold expires.
+  const inDoneGroup = (id, d) => isDone(id, d) !== !!(_hold && _hold[id]);
+  const doneCarries = carries.filter(t => inDoneGroup(t.id, t._home));
+  const openCarries = carries.filter(t => !inDoneGroup(t.id, t._home));
+  const doneTasks = tasks.filter(t => inDoneGroup(t.id, day));
+  const openTasks = tasks.filter(t => !inDoneGroup(t.id, day));
   const nnOpen = showNn ? NN.filter(n => !nnDone[n.link]) : [];
   const nnDoneRows = showNn ? NN.filter(n => nnDone[n.link]) : [];
 
@@ -2697,7 +2734,7 @@ function addBoxHtml(zone, placeholder) {
   return `<div class="bk-add" onclick="this.querySelector('input').focus()">
       <span class="bk-add-plus">+</span>
       <input class="bk-add-inp" type="text" placeholder="${placeholder}"
-        onkeydown="if(event.key==='Enter'){listQuickAdd('${zone}',this);event.stopPropagation();}"
+        onkeydown="if(event.key==='Enter'){listQuickAdd('${zone}',this);event.stopPropagation();}else if(event.key==='Escape'){this.value='';this.blur();}"
         onfocus="this.parentElement.classList.add('focused')"
         onblur="this.parentElement.classList.remove('focused')">
     </div>`;
@@ -2727,6 +2764,50 @@ function noteLine(l) {
   return `<a class="t-link" href="${l}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${label} &#8599;</a>`;
 }
 
+// Snapshot-based undo: restore the whole state, but only if nothing else has
+// changed since (a sync pull or another edit would otherwise be thrown away).
+function withUndo(label, mutate) {
+  const before = JSON.stringify(S);
+  mutate();
+  const after = JSON.stringify(S);
+  if (after === before) return;
+  toast(label, { label: 'Undo', fn: () => {
+    if (JSON.stringify(S) !== after) { toast('Can\u2019t undo \u2014 something else changed since.'); return; }
+    S = JSON.parse(before);
+    save(); render();
+    toast('Restored.');
+  }});
+}
+
+// Enter = Save (Ctrl+Enter inside notes), Esc = close, click outside = close.
+function wireModal(modal, focusId) {
+  modal.addEventListener('mousedown', e => { if (e.target === modal) modal.remove(); });
+  modal.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); modal.remove(); }
+    else if (e.key === 'Enter' && (e.target.tagName !== 'TEXTAREA' || e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      const saveBtn = modal.querySelector('.qa-btn');
+      if (saveBtn) saveBtn.click();
+    }
+  });
+  const f = focusId && modal.querySelector('#' + focusId);
+  if (f) { f.focus(); const n = f.value.length; try { f.setSelectionRange(n, n); } catch (err) {} }
+}
+
+// A custom task by id: the given day/zone first, then anywhere. Carried rows
+// live on their home day, not the day being viewed.
+function findCustom(tid, preferDay, preferZone) {
+  const zones = preferZone ? [preferZone, ...['list', 'parking'].filter(z => z !== preferZone)] : ['list', 'parking'];
+  const look = d => {
+    for (const z of zones) {
+      const t = (((S.custom[d] || {})[z]) || []).find(x => x.id === tid);
+      if (t) return { day: d, zone: z, task: t };
+    }
+    return null;
+  };
+  return (preferDay && look(preferDay)) || Object.keys(S.custom).map(look).find(Boolean) || null;
+}
+
 // One task row. `zone` is 'list' or 'parking'; opts.carry marks a carried-over
 // task surfaced from a previous day (t._home).
 function sdTaskRow(t, zone, opts = {}) {
@@ -2750,7 +2831,7 @@ function sdTaskRow(t, zone, opts = {}) {
   if (t.dur) meta += `<span class="dur mono">${t.dur}m</span>`;
   if (type === 'rec') meta += `<span class="rep" title="Repeats every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][t.dayOfWeek] || 'week'}">&#8635;</span>`;
   return `
-    <div class="row ${d ? 'done' : ''} ${justAdded ? 'just-added-task' : ''}" ${dragAttrs}>
+    <div class="row ${d ? 'done' : ''} ${justAdded ? 'just-added-task' : ''}" data-id="${t.id}" ${dragAttrs}>
       <span class="sd-grip">&#8942;&#8942;</span>
       <div class="tck ${d ? 'done' : ''}" onclick="toggle('${t.id}','${home}')"></div>
       <div class="t-content" ${editAttr}>
@@ -2858,7 +2939,7 @@ function rmRecurringMenu(id, el) {
   }, 10);
 }
 
-function rmRecurringAll(id) {
+function _rmRecurringAllNow(id) {
   closeMoveMenu();
   const target = S.recurring.find(r => r.id === id);
   if (!target) return;
@@ -2870,8 +2951,12 @@ function rmRecurringAll(id) {
   }
   save(); render();
 }
+function rmRecurringAll(id) {
+  const r = S.recurring.find(x => x.id === id); const label = `Removed "${r ? r.text : 'task'}" from every day`;
+  withUndo(label, () => _rmRecurringAllNow(id));
+}
 
-function rmRecurring(id) {
+function _rmRecurringNow(id) {
   // Gym rows are rebuilt from S.gymDays on every launch and sync pull, so
   // filtering S.recurring alone gets undone. Remove the day from the source
   // of truth instead and let syncGymDays() rebuild.
@@ -2885,12 +2970,24 @@ function rmRecurring(id) {
   S.recurring = S.recurring.filter(r => r.id !== id);
   save(); render();
 }
+function rmRecurring(id) {
+  const r = S.recurring.find(x => x.id === id); const label = r ? `Removed "${r.text}" on ${['Sundays','Mondays','Tuesdays','Wednesdays','Thursdays','Fridays','Saturdays'][r.dayOfWeek] || 'that day'}` : 'Removed';
+  withUndo(label, () => _rmRecurringNow(id));
+}
 
 function focusQuickAdd() {
   document.querySelector('.list[data-zone="list"] .bk-add-inp')?.focus();
 }
 
 // ── DRAG AND DROP (reorder within a list, or move between list & parking) ──
+// Whatever happens to a drag (drop, Esc, dropped outside), clear its styling.
+function clearDragStyles() {
+  document.querySelectorAll('.dragging, .drop-above, .drop-below, .drag-over')
+    .forEach(el => el.classList.remove('dragging', 'drop-above', 'drop-below', 'drag-over'));
+}
+document.addEventListener('dragend', clearDragStyles);
+document.addEventListener('drop', () => setTimeout(clearDragStyles, 0));
+
 function dragTask(e, fromZone, type, tid) {
   e.dataTransfer.setData('text/plain', JSON.stringify({ fromZone, type, tid }));
   e.dataTransfer.effectAllowed = 'move';
@@ -2909,15 +3006,28 @@ function dragOverRow(e) {
   e.preventDefault();
   e.stopPropagation();
   e.dataTransfer.dropEffect = 'move';
-  e.currentTarget.classList.add('drop-above');
+  // Top half = drop above this row, bottom half = drop below it.
+  const r = e.currentTarget.getBoundingClientRect();
+  const below = e.clientY > r.top + r.height / 2;
+  e.currentTarget.classList.toggle('drop-above', !below);
+  e.currentTarget.classList.toggle('drop-below', below);
 }
 function dragLeaveRow(e) {
-  e.currentTarget.classList.remove('drop-above');
+  // Moving onto the row's own text fires dragleave too; ignore that (flicker).
+  if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+  e.currentTarget.classList.remove('drop-above', 'drop-below');
 }
 function dropOnRow(e, zone, beforeTid) {
   e.preventDefault();
   e.stopPropagation();
-  e.currentTarget.classList.remove('drop-above');
+  const row = e.currentTarget;
+  if (row.classList.contains('drop-below')) {
+    // "Below this row" = "before the next draggable row", or the end.
+    let next = row.nextElementSibling;
+    while (next && !(next.classList.contains('row') && next.dataset.id && next.draggable)) next = next.nextElementSibling;
+    beforeTid = next ? next.dataset.id : null;
+  }
+  row.classList.remove('drop-above', 'drop-below');
   let data;
   try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { return; }
   moveOrReorder(data, zone, beforeTid);
