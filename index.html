@@ -363,6 +363,13 @@
   .bk-add-inp::placeholder { color: var(--faint); }
 
   /* Parking lot: one quiet line when empty, a second .list when not */
+  .sync-warn { display:flex; align-items:center; gap:12px; margin:0 0 22px; padding:12px 16px; border-radius:10px; background:var(--danger-bg); color:var(--text); font-size:13px; }
+  .sync-warn b { color:var(--danger); }
+  .sync-warn button { margin-left:auto; flex:none; padding:6px 14px; border-radius:8px; border:0; background:var(--danger); color:var(--on-done); font:inherit; font-weight:600; cursor:pointer; }
+  .now .nudge { margin-top:10px; font-size:14px; color:var(--muted); }
+  .now .nudge a { color:var(--accent); text-decoration:none; font-weight:600; }
+  .now .nudge a:hover { text-decoration:underline; }
+  .now .nudge .ok { color:var(--done); font-weight:600; }
   .earlier-head { display:flex; align-items:baseline; gap:8px; padding:12px 16px 6px; border-top:1px solid var(--border); font-size:12px; font-weight:600; color:var(--muted); }
   .earlier-head .n { color:var(--text); }
   .earlier-head .hint { margin-left:auto; font-weight:400; color:var(--faint); } margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
@@ -628,7 +635,6 @@
     <div class="week" id="week"></div>
     <div class="utils">
       <span class="mono"><b id="sTasks">0/0</b> done</span>
-      <span class="mono" title="Days in a row with every Daily ticked"><b id="sStreak">0</b> streak</span>
       <span id="sNnPill" style="display:none;"><b id="sNn">0/1</b> daily</span>
       <span class="sync" id="syncPill" onclick="openSyncSetup()" title="Cloud sync — click to set up or add a device">
         <span class="sync-dot" id="syncPillDot"></span><span id="syncPillText">sync off</span>
@@ -709,14 +715,6 @@
         </div>
         <div class="up" id="railUp"></div>
       </section>
-
-      <!-- This week (S.weekly) — collapsed by default -->
-      <section id="railWeek">
-        <h3 class="clickable" onclick="toggleSbSec('wkList','wkChev')">This week
-          <span class="right"><span class="badge" id="wkBdg">0</span><span class="chev" id="wkChev">&#9660;</span></span>
-        </h3>
-        <div id="wkList" style="display:none;"></div>
-      </section>
     </aside>
   </div>
 </div>
@@ -750,9 +748,9 @@ function workSeedTasks() {
 
 // Daily non-negotiables — small quick ticks, render as chips above Today's Work.
 // `link` is the unique key used for done state in S.done[day][link].
-const NN = [
-  { id: 'nn3', text: 'Creatine + protein + multivit', biz: 'Health', link: 'nn_supps'     },
-];
+// Daily non-negotiables. Emptied 12 Nov 2026 (supplements ticked 1 day in 6 weeks).
+// Re-adding one entry brings back the pinned Daily row; streak stays hidden.
+const NN = [];
 
 // Parking lot — optional work, doesn't count toward progress. Lives below mainwork_pm.
 const PARKING_TEMPLATE = [
@@ -1505,13 +1503,16 @@ function getCarryTasks() {
   for (const dk of Object.keys(S.custom).sort().reverse()) {
     if (dk >= tk) continue;
     const dismissed = (S.carryDismissed || {})[dk] || {};
-    for (const t of ((S.custom[dk] || {}).list) || []) {
+    const day = S.custom[dk] || {};
+    // Parking items ride along too now the Parking lot section is gone.
+    const items = [...(day.list || []).map(t => [t, 'list']), ...(day.parking || []).map(t => [t, 'parking'])];
+    for (const [t, zone] of items) {
       if (dismissed[t.id] || seen.has(t.id)) continue;
       seen.add(t.id);
       // Ticked TODAY stays visible (struck through) until the day rolls over;
       // ticked on an earlier day (or on its own home day) stays hidden.
       if (isDone(t.id, dk) && (S.carryTicked || {})[t.id] !== today()) continue;
-      out.push({ ...t, _type: 'c', _home: dk });
+      out.push({ ...t, _type: 'c', _home: dk, _zone: zone });
     }
   }
   return out;
@@ -1634,7 +1635,7 @@ function toggle(tid, day) {
     }, 20);
     // All non-negotiables complete banner
     const nnD = S.done[viewDay] || {};
-    if (NN.every(n => nnD[n.link])) {
+    if (NN.length && NN.every(n => nnD[n.link])) {
       const banner = document.createElement('div');
       banner.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--done);color:var(--on-done);padding:12px 24px;border-radius:10px;font-weight:600;font-size:14px;box-shadow:0 4px 20px var(--done-bg);animation:fadeUp 0.3s ease;';
       banner.textContent = 'All non-negotiables done! Streak: ' + streakCount() + ' days';
@@ -1673,9 +1674,7 @@ function moveMenu(type, tid, zone, homeDay, el) {
   htm += `<input id="sd-move-date" class="ae-date" type="date" style="display:none;margin:4px;"
     onclick="event.stopPropagation()"
     onchange="if(this.value)execMove(${args},'date:'+this.value)">`;
-  htm += zone === 'parking'
-    ? `<div class="sd-menu-item" onclick="execMove(${args},'today')">To Today</div>`
-    : `<div class="sd-menu-item" onclick="execMove(${args},'parking')">To Parking Lot</div>`;
+  if (zone === 'parking') htm += `<div class="sd-menu-item" onclick="execMove(${args},'today')">To Today</div>`;
   picker.innerHTML = htm;
   document.body.appendChild(picker);
 
@@ -2367,6 +2366,7 @@ function renderCountdownHero() {
 
 // ── STREAK ──
 function checkStreak() {
+  if (!NN.length) return;
   const tk = today();
   const d = S.done[tk] || {};
   const allNn = NN.every(n => d[n.link]);
@@ -2541,10 +2541,10 @@ function renderMain() {
   // paints into the rail, so run it here where it always ran, before the day.
   renderCountdownHero();
 
-  let htm = renderNowBlock(viewDay);
+  let htm = syncKey() ? '' : `<div class="sync-warn"><b>This device isn&rsquo;t synced.</b> Tasks from your phone won&rsquo;t show here, and anything you add stays on this device.<button type="button" onclick="openSyncSetup()">Connect</button></div>`;
+  htm += renderNowBlock(viewDay);
   if (!isWeekend(viewDay)) htm += shortDayCapacityHtml(viewDay);
   htm += renderDayCard(viewDay);
-  htm += renderParkingLot(viewDay);
   el.innerHTML = htm;
   document.title = 'Daily OS';
 }
@@ -2571,7 +2571,7 @@ function renderNowBlock(day) {
   const isToday = day === today();
   const tasks = listTasks(day);
   const doneCount = tasks.filter(t => isDone(t.id, day)).length;
-  let eyebrow, h1, then;
+  let eyebrow, h1, then, nudge = '';
   if (isToday) {
     const carries = getCarryTasks();
     const firstOpen = tasks.find(t => !isDone(t.id, day)) || carries.find(t => !isDone(t.id, t._home));
@@ -2584,6 +2584,7 @@ function renderNowBlock(day) {
       h1 = `Clear day. <span class="soft">${doneCount} done, nothing waiting.</span>`;
     }
     then = dayEventSpans(day);
+    nudge = looseEndsNudge(carries);
   } else {
     const vd = new Date(day + 'T12:00:00');
     const isPastDay = day < today();
@@ -2600,7 +2601,20 @@ function renderNowBlock(day) {
       <div class="eyebrow">${eyebrow}</div>
       <h1>${h1}</h1>
       ${then ? `<div class="then">${then}</div>` : ''}
+      ${nudge}
     </section>`;
+}
+
+// "14 loose ends from earlier · clear 3 today" — daily target of 3, counted
+// from carries ticked today (S.carryTicked), so progress survives a reload.
+const LOOSE_TARGET = 3;
+function looseEndsNudge(carries) {
+  const open = carries.filter(t => !isDone(t.id, t._home)).length;
+  const cleared = Object.values(S.carryTicked || {}).filter(d => d === today()).length;
+  if (open < LOOSE_TARGET && cleared < LOOSE_TARGET) return '';
+  const jump = `<a href="#earlier" onclick="document.getElementById('earlier')?.scrollIntoView({behavior:'smooth',block:'start'});return false;">${open} loose end${open === 1 ? '' : 's'} from earlier</a>`;
+  if (cleared >= LOOSE_TARGET) return `<div class="nudge">${jump} · <span class="ok">${cleared} cleared today ✓</span></div>`;
+  return `<div class="nudge">${jump} · clear ${LOOSE_TARGET} today <span class="soft">(${cleared} of ${LOOSE_TARGET})</span></div>`;
 }
 
 // ── TODAY (the day's flat tick-list) ──
@@ -2611,7 +2625,7 @@ function renderDayCard(day) {
   const doneCount = tasks.filter(t => isDone(t.id, day)).length;
   const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
   const title = isToday ? 'Today' : fmtDate(new Date(day + 'T12:00:00'), { weekday: 'long' });
-  const showNn = !isWeekend(day);
+  const showNn = NN.length > 0 && !isWeekend(day);
   const nnDone = S.done[day] || {};
 
   // Row order: done (compact) → Daily → today's pending → "Still open from earlier". Display-only sort;
@@ -2628,13 +2642,13 @@ function renderDayCard(day) {
     <div class="progress"><i style="width:${pct}%"></i></div>
     <div class="list" data-zone="list" ondragover="dragOverBlock(event)" ondragleave="dragLeaveBlock(event)" ondrop="dropTask(event,'list')">`;
   for (const n of nnDoneRows) htm += nnRow(n, true);
-  for (const t of doneCarries) htm += sdTaskRow(t, 'list', { carry: true });
+  for (const t of doneCarries) htm += sdTaskRow(t, t._zone || 'list', { carry: true });
   for (const t of doneTasks) htm += sdTaskRow(t, 'list', {});
   for (const n of nnOpen) htm += nnRow(n, false);
   for (const t of openTasks) htm += sdTaskRow(t, 'list', {});
   if (openCarries.length) {
-    htm += `<div class="earlier-head">Still open from earlier <span class="n">${openCarries.length}</span><span class="hint">tick when done · × to drop</span></div>`;
-    for (const t of openCarries) htm += sdTaskRow(t, 'list', { carry: true });
+    htm += `<div class="earlier-head" id="earlier">Still open from earlier <span class="n">${openCarries.length}</span><span class="hint">tick when done · × to drop</span></div>`;
+    for (const t of openCarries) htm += sdTaskRow(t, t._zone || 'list', { carry: true });
   }
   if (!tasks.length && !carries.length) {
     htm += `<div class="sd-empty">${isDayOff(day) ? 'Day off. Enjoy.' : (showNn ? 'Nothing else on the list yet.' : 'Nothing on the list yet.')}</div>`;
@@ -3674,6 +3688,14 @@ function maybeAutoConnectFromHash() {
 // First connect: decide which side wins instead of blindly adopting the cloud.
 // Cloud empty -> seed it with this device. Local trivial -> adopt cloud.
 // Both have real data -> ask.
+function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
+
+function countTasks(st) {
+  let n = ((st && st.weekly) || []).length;
+  for (const z of Object.values((st && st.custom) || {})) n += ((z && z.list) || []).length + ((z && z.parking) || []).length;
+  return n;
+}
+
 async function firstConnectSync() {
   try {
     const out = await syncRpc('dailyos_pull', { sync_key: syncKey() });
@@ -3682,14 +3704,22 @@ async function firstConnectSync() {
       Object.keys(S.done || {}).length > 0 ||
       (S.weekly || []).length > 0 ||
       Object.keys(S.custom || {}).length > 0;
-    if (localHasData && !confirm(
-      'This sync key already has data in the cloud.\n\n' +
-      'OK = use the CLOUD data (replaces what is on this device)\n' +
-      'Cancel = keep THIS device’s data (replaces the cloud)'
-    )) {
-      setSyncDirty(true);
-      cloudPush();
-      return;
+    if (localHasData) {
+      // Name the stakes: a reset device keeping "its" data would wipe every other device.
+      const nCloud = countTasks(out.data), nLocal = countTasks(S);
+      const saved = out.data && out.data._lastSaved
+        ? new Date(out.data._lastSaved).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'unknown';
+      const useCloud = confirm(
+        `The cloud has ${plural(nCloud, 'task')} (last saved ${saved}). This device has ${nLocal}.\n\n` +
+        'OK = use the CLOUD data (recommended)\n' +
+        'Cancel = keep THIS device and overwrite the cloud');
+      if (!useCloud) {
+        const sure = nLocal >= nCloud || confirm(
+          `Overwrite the cloud with this device's ${plural(nLocal, 'task')}?\n\n` +
+          `Your other devices would lose ${plural(nCloud - nLocal, 'task')}. This can't be undone.\n\n` +
+          'OK = overwrite anyway · Cancel = use the cloud instead');
+        if (sure) { setSyncDirty(true); cloudPush(); return; }
+      }
     }
     adoptState(out.data);
     localStorage.setItem(SYNC_TS_LS, out.updated_at);
